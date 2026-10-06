@@ -64,3 +64,7 @@ The app uses relative URLs, so changing the repository name does not require cod
 ## 6. Required backend setup
 
 Before real use, finish `SETUP.md` so Supabase, the organiser account, Apps Script and Google Drive backup are configured.
+
+
+## GitHub root upload
+This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.

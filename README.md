@@ -57,3 +57,7 @@ Use `mapUrl`, `mapTileUrl`, `mapCenterLat`, `mapCenterLon`, and `mapZoom`. `mapU
 `Locations` columns: `ID | Name | Description | Instructions | Latitude | Longitude | Category | Icon | Points | PhotoRequired | VideoAllowed | Active | ChallengeNumbers`
 
 Leave `ID` blank for a new row. The Apps Script will assign a UUID. `Active=false` hides the pin from participants without deleting the row. `ChallengeNumbers` accepts values such as `1, 4, 12`.
+
+
+## GitHub root upload
+This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.

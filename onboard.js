@@ -21,7 +21,7 @@ export function mountOnboarding(root, done) {
   function render() {
     const step = steps[idx];
     if (step === 'welcome') {
-      shell(el('img', { class: 'big-logo', src: 'icons/logo.png', alt: 'JOTA-JOTI' }),
+      shell(el('img', { class: 'big-logo', src: 'logo.png', alt: 'JOTA-JOTI' }),
         el('h1', {}, 'JOTA-JOTI CAMERA'),
         el('p', { class: 'muted' }, 'Take photos and videos during JOTA-JOTI, complete challenges, and send your adventures back to the organisers.'),
         el('div', { class: 'notice' }, cfg.mediaNotice || 'Photos, videos, sounds and location that you post are sent to the JOTA-JOTI organisers. Other participants cannot see them.'),

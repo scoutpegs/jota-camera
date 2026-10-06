@@ -193,3 +193,7 @@ Columns, in this exact order:
 Leave **ID** blank when you add a new location. The Apps Script creates a UUID automatically. Enter latitude/longitude as decimal degrees. Use `true` or `false` in the Yes/No fields. Put challenge numbers in `ChallengeNumbers`, for example `1, 4, 12`.
 
 The **Map pins** page in Admin no longer edits Supabase locations directly. It shows what is currently in the Sheet and provides links to open the Sheet, open the Google map URL, and manually sync Sheet → Supabase.
+
+
+## GitHub root upload
+This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.

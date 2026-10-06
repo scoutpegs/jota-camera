@@ -1,4 +1,4 @@
-import { SUPABASE_URL as U, SUPABASE_KEY as K, GOOGLE_BACKUP_URL as BU, GOOGLE_BACKUP_KEY as BK } from '../js/backend.js';
+import { SUPABASE_URL as U, SUPABASE_KEY as K, GOOGLE_BACKUP_URL as BU, GOOGLE_BACKUP_KEY as BK } from './backend.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');

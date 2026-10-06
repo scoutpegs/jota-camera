@@ -43,3 +43,7 @@ A live browser session against GitHub Pages, Supabase and the Apps Script deploy
 ## Google Sheet map source
 
 The participant Map tab reads the current `Map Settings` and `Locations` data through Apps Script and caches it for offline use. The Supabase copy is a mirror for challenge relationships and fallback operation. `Active=false` rows are kept in the Sheet/admin view but hidden from participants.
+
+
+## GitHub root upload
+This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.

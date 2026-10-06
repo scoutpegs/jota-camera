@@ -7,8 +7,8 @@
 <meta name="description" content="Take photos and videos during JOTA-JOTI, complete challenges and send them to the organisers.">
 <meta name="theme-color" content="#0d0d10">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,12 +16,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="app.css">
 </head>
 <body>
+<div id="boot" aria-live="polite"><img src="logo.png" alt="JOTA-JOTI"><strong>JOTA-JOTI Camera</strong><span>Loading…</span></div>
 <div id="app">
   <header id="topbar" hidden>
-    <img class="logo" src="icons/logo.png" alt="">
+    <img class="logo" src="logo.png" alt="">
     <span class="title">JOTA-JOTI</span>
     <span class="spacer"></span>
     <span class="status" id="status" role="status" aria-live="polite"><span class="dot"></span><span id="status-text">Online</span></span>
@@ -41,6 +42,18 @@
 <footer class="site-credit">Made by Hunter Miller from Boulder Scout Hall</footer>
 </div>
 <noscript><p style="padding:24px;color:#fff">JOTA-JOTI Camera needs JavaScript. Please turn it on in your browser settings.</p></noscript>
-<script type="module" src="js/main.js"></script>
+<script type="module" src="main.js"></script>
+<script>
+window.addEventListener('error', function(e){
+  var b=document.getElementById('boot');
+  if(b && e && e.filename && /\.js$/.test(e.filename)){
+    b.innerHTML='<img src="logo.png" alt="JOTA-JOTI"><strong>JOTA-JOTI Camera</strong><span>Loading failed. Check that all files are uploaded to the repository root.</span>';
+  }
+});
+window.addEventListener('unhandledrejection', function(){
+  var b=document.getElementById('boot'); if(b) b.dataset.warning='1';
+});
+setTimeout(function(){ var b=document.getElementById('boot'); if(b && document.querySelector('#topbar:not([hidden])')) b.classList.add('gone'); }, 1200);
+</script>
 </body>
 </html>
