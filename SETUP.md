@@ -206,3 +206,10 @@ When installed as a PWA, the camera header and bottom navigation use the device 
 The participant navigation contains Camera, Map, Challenges and My posts. The old A/admin button is not shown in the participant app.
 
 When the phone exposes hardware zoom controls, the camera shows quick 1x and 2x buttons and also supports pinch/slider zoom.
+
+
+## Map setup
+
+The built-in map opens centred on Boulder in the Kalgoorlie-Boulder area. Australia Post lists Boulder, WA as postcode 6432; postcode 6430 is used for Kalgoorlie and surrounding localities. The app uses the Boulder map centre and the organiser Google Sheet remains the source of truth for locations.
+
+In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to attach challenge numbers to a location. Those challenges then appear on the map and can launch the camera directly.

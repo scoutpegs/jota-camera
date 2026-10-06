@@ -21,6 +21,7 @@ export function mountMap(root, app) {
   root.replaceChildren();
   const wrap = el('div', { class: 'map-wrap' });
   const banner = el('div', { class: 'map-banner', hidden: true });
+  const place = el('div', { class: 'map-place' }, el('b', {}, 'Boulder · Kalgoorlie-Boulder'), el('span', {}, 'Western Australia'));
   const listBox = el('div', { class: 'page', hidden: true });
   const tools = el('div', { class: 'map-toolbar' },
     el('button', { class: 'tool', 'aria-label': 'Zoom in', onclick: () => map && map.zoomBy(1) }, icon('plus')),
@@ -28,12 +29,12 @@ export function mountMap(root, app) {
     el('button', { class: 'tool', id: 'locate', 'aria-label': 'Centre on my location', onclick: () => { const f = lastFix(); if (f && map) map.setView(f.latitude, f.longitude, Math.max(map.zoom, 16)); } }, icon('locate')),
     el('button', { class: 'tool', id: 'map-list', 'aria-label': 'Show locations as a list', 'aria-pressed': 'false', onclick: toggleList }, icon('posts')));
   const external = el('button', { class: 'map-external', hidden: true, onclick: () => { if (cfg.mapUrl) window.open(cfg.mapUrl, '_blank', 'noopener,noreferrer'); } }, icon('map'), el('span', {}, 'Open Google Maps'));
-  root.append(wrap, banner, external, tools, listBox);
+  root.append(wrap, banner, place, external, tools, listBox);
   let map = null, pins = [], challenges = [], done = new Set(), off = null, showingList = false;
 
   function toggleList() {
     showingList = !showingList;
-    listBox.hidden = !showingList; wrap.hidden = showingList; root.style.overflowY = showingList ? 'auto' : 'hidden';
+    listBox.hidden = !showingList; wrap.hidden = showingList; place.hidden = showingList; tools.hidden = showingList; external.hidden = showingList || !cfg.mapUrl; root.style.overflowY = showingList ? 'auto' : 'hidden';
     root.querySelector('#map-list').setAttribute('aria-pressed', String(showingList));
     if (showingList) drawList();
   }

@@ -240,11 +240,33 @@ export class TileMap {
     }
     return t;
   }
+  drawOfflineFallback(ctx, w, h) {
+    ctx.save();
+    ctx.fillStyle = '#edf3ef'; ctx.fillRect(0, 0, w, h);
+    // A deliberately simple fallback keeps the map usable when tiles are not cached.
+    // The real OpenStreetMap tiles take over automatically when connectivity is available.
+    ctx.strokeStyle = '#d7e0da'; ctx.lineWidth = 1;
+    const grid = Math.max(44, Math.min(88, Math.round(84 - this.zoom * 2)));
+    for (let x = (w / 2) % grid; x < w; x += grid) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (let y = (h / 2) % grid; y < h; y += grid) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    // Main roads are intentionally schematic only; do not imply exact street geometry offline.
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-40, h * .62); ctx.bezierCurveTo(w * .26, h * .47, w * .52, h * .62, w + 50, h * .34); ctx.stroke();
+    ctx.strokeStyle = '#d8dde1'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(w * .18, -30); ctx.bezierCurveTo(w * .30, h * .28, w * .23, h * .68, w * .52, h + 30); ctx.stroke();
+    ctx.fillStyle = '#51636d'; ctx.textAlign = 'left';
+    ctx.font = '700 20px system-ui, sans-serif'; ctx.fillText('Boulder', 18, 42);
+    ctx.font = '12px system-ui, sans-serif'; ctx.fillText('Kalgoorlie-Boulder, Western Australia', 18, 62);
+    ctx.font = '11px system-ui, sans-serif'; ctx.fillStyle = '#6d7b83'; ctx.fillText('Map detail will appear when map tiles are available.', 18, h - 24);
+    ctx.restore();
+  }
+
   draw() {
     const { ctx, w, h } = this;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.fillStyle = '#23232a'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#eef3ef'; ctx.fillRect(0, 0, w, h);
     const tz = clamp(Math.round(this.zoom), this.minZoom, this.maxZoom), scale = 2 ** (this.zoom - tz);
+    let gotTile = false;
     const c = project(this.lat, this.lon, tz), n = 2 ** tz;
     const x0 = c.x - w / 2 / scale, y0 = c.y - h / 2 / scale;
     ctx.strokeStyle = '#2d2d36'; ctx.lineWidth = 1;
@@ -253,8 +275,11 @@ export class TileMap {
         if (ty < 0 || ty >= n) continue;
         const sx = (tx * TILE - x0) * scale, sy = (ty * TILE - y0) * scale, size = TILE * scale + 0.6;
         const t = this.tile(tz, ((tx % n) + n) % n, ty);
-        if (t.ok) ctx.drawImage(t.img, sx, sy, size, size); else ctx.strokeRect(sx + .5, sy + .5, size - 1, size - 1);
+        if (t.ok) { ctx.drawImage(t.img, sx, sy, size, size); gotTile = true; } else ctx.strokeRect(sx + .5, sy + .5, size - 1, size - 1);
       }
+    }
+    if (!gotTile) {
+      this.drawOfflineFallback(ctx, w, h);
     }
     // you are here
     if (this.user) {
@@ -265,8 +290,7 @@ export class TileMap {
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, 9, 0, 7); ctx.fill();
       ctx.fillStyle = '#3b82f6'; ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, 7); ctx.fill();
     }
-    // Subtle darkening keeps the map readable while giving the app its own map treatment.
-    ctx.fillStyle = 'rgba(10, 18, 32, .22)'; ctx.fillRect(0, 0, w, h);
+    if (gotTile) { ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(0, 0, w, h); }
     for (const m of this.markers) {
       const s = this.latLonToScreen(m.lat, m.lon);
       if (s.x < -60 || s.y < -70 || s.x > w + 60 || s.y > h + 70) continue;
@@ -282,7 +306,7 @@ export class TileMap {
         ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(m.label, s.x, s.y + r + 14); ctx.fillStyle = '#fff'; ctx.fillText(m.label, s.x, s.y + r + 14);
       }
     }
-    ctx.font = '10px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,.75)';
-    ctx.fillText('© OpenStreetMap contributors', w - 6, h - 6);
+    ctx.font = '10px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(36,52,62,.72)';
+    ctx.fillText('© OpenStreetMap contributors', w - 8, h - 8);
   }
 }

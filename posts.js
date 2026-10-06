@@ -5,6 +5,7 @@ import { events as upEvents, kick } from './uploader.js';
 import { api } from './api.js';
 import { identity } from './identity.js';
 import { TileMap } from './tilemap.js';
+import { onFix, lastFix, startWatch, stopWatch } from './location.js';
 
 function hasCoords(s) {
   return Number.isFinite(Number(s?.latitude)) && Number.isFinite(Number(s?.longitude));
@@ -26,7 +27,7 @@ function distanceText(a, b) {
 }
 
 export function mountPosts(root, app) {
-  let urls = [], active = false, remoteCache = [], map = null, current = [], hasFitted = false, activeSheet = null;
+  let urls = [], active = false, remoteCache = [], map = null, current = [], hasFitted = false, activeSheet = null, offFix = null, userFitted = false;
   const objectUrls = new Map();
 
   const revoke = () => { objectUrls.forEach((u) => URL.revokeObjectURL(u)); objectUrls.clear(); urls = []; };
@@ -199,6 +200,9 @@ export function mountPosts(root, app) {
     if (mapped.length && !hasFitted) {
       const pts = mapped.map((s) => ({ lat: Number(s.latitude), lon: Number(s.longitude) }));
       if (pts.length) { map.fitTo(pts, 170); hasFitted = true; }
+    } else if (!mapped.length && !userFitted && lastFix()) {
+      map.setView(lastFix().latitude, lastFix().longitude, Math.max(map.zoom, 14));
+      userFitted = true;
     }
   }
 
@@ -207,5 +211,5 @@ export function mountPosts(root, app) {
   const soon = () => { clearTimeout(t); t = setTimeout(render, 180); };
   subEvents.addEventListener('change', soon); upEvents.addEventListener('progress', onProgress);
 
-  return {\n    async show() { active = true; ui = null; map = null; selectedId = null; await loadRemote(); await render(); },\n    hide() { active = false; activeSheet?.close(); activeSheet = null; revoke(); if (map) { map.destroy(); map = null; } root.replaceChildren(); ui = null; },\n  };
+  return {\n    async show() { active = true; ui = null; map = null; hasFitted = false; userFitted = false; await loadRemote(); await render(); },\n    hide() { active = false; activeSheet?.close(); activeSheet = null; revoke(); offFix && offFix(); offFix = null; stopWatch(); if (map) { map.destroy(); map = null; } root.replaceChildren(); ui = null; },\n  };
 }

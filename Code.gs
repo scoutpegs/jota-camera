@@ -23,11 +23,11 @@ const DEFAULTS = Object.freeze({
   MAP_SETTINGS_HEADERS: ['Key', 'Value', 'Description'],
   LOCATION_HEADERS: ['ID', 'Name', 'Description', 'Instructions', 'Latitude', 'Longitude', 'Category', 'Icon', 'Points', 'PhotoRequired', 'VideoAllowed', 'Active', 'ChallengeNumbers'],
   MAP_DEFAULTS: {
-    mapUrl: 'https://www.google.com/maps/@?api=1&map_action=map&center=-30.7745%2C121.488&zoom=13',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Boulder%2C%20Western%20Australia',
     mapTileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     mapCenterLat: -30.7745,
     mapCenterLon: 121.488,
-    mapZoom: 13,
+    mapZoom: 14,
   },
 });
 
@@ -174,6 +174,7 @@ function syncSheetToSupabase() {
     id: p.id, name: p.name, description: p.description, instructions: p.instructions,
     latitude: p.latitude, longitude: p.longitude, category: p.category, icon: p.icon,
     points: p.points, photo_required: p.photoRequired, video_allowed: p.videoAllowed, active: p.active,
+    challenge_numbers: p.challengeNumbers || [],
   }));
   if (rows.length) restUpsert_('locations?on_conflict=id', rows, 'resolution=merge-duplicates,return=minimal');
   // Keep the Supabase mirror from retaining map pins that were deleted from the Sheet.

@@ -91,7 +91,7 @@ function challengeOut(c, loc, snd) {
 const pinOut = (r, challengeIds) => ({
   id: r.id, name: r.name, description: r.description || '', instructions: r.instructions || '', latitude: r.latitude, longitude: r.longitude,
   category: r.category || '', icon: r.icon || '', points: r.points || 0, photoRequired: !!r.photo_required, videoAllowed: !!r.video_allowed,
-  active: !!r.active, challengeIds,
+  active: !!r.active, challengeIds, challengeNumbers: Array.isArray(r.challenge_numbers) ? r.challenge_numbers : [],
 });
 const cleanQ = (s) => String(s || '').replace(/[,()*%\\:"']/g, ' ').trim().slice(0, 60);
 

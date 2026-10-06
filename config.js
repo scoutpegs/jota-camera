@@ -9,8 +9,8 @@ export const DEFAULTS = {
   locationMode: 'optional', enforceRadius: false, allowCustomSounds: true, allowAudioUploads: true, maxCustomAudioSeconds: 15,
   micMode: 'mix', mediaNotice: '', aButtonLabel: 'A', aButtonUrl: '',
   tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-  mapUrl: 'https://www.google.com/maps/@?api=1&map_action=map&center=-30.7745%2C121.488&zoom=13',
-  mapCenterLat: -30.7745, mapCenterLon: 121.488, mapZoom: 13, offlineAudio: false,
+  mapUrl: 'https://www.google.com/maps/search/?api=1&query=Boulder%2C%20Western%20Australia',
+  mapCenterLat: -30.7745, mapCenterLon: 121.488, mapZoom: 14, offlineAudio: false,
 };
 export const cfg = { ...DEFAULTS };
 export let serverOffsetMs = 0; // server clock minus phone clock

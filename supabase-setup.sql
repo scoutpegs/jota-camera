@@ -19,6 +19,7 @@ create table if not exists public.locations (
   description text default '', instructions text default '', latitude double precision not null,
   longitude double precision not null, category text default '', icon text default '', points int default 0,
   photo_required boolean default false, video_allowed boolean default true, active boolean default true,
+  challenge_numbers text[] default '{}',
   created_at timestamptz default now());
 
 create table if not exists public.challenges (
@@ -51,6 +52,9 @@ create table if not exists public.submissions (
   last_error text default '', last_error_at timestamptz,
   backup_status text default 'PENDING', storage_provider text default 'LOCAL',
   backup_file_id text default '', backup_url text default '', backup_at timestamptz, backup_error text default '');
+
+
+alter table public.locations add column if not exists challenge_numbers text[] default '{}';
 
 alter table public.submissions add column if not exists backup_status text default 'PENDING';
 alter table public.submissions add column if not exists storage_provider text default 'LOCAL';

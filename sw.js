@@ -1,6 +1,6 @@
 // Service worker: keeps the app opening with no internet, and remembers map pictures you have looked at.
 // Photos, videos and the upload queue are NOT handled here; they live in IndexedDB (see db.js).
-const VERSION = 'v7-camera-polish';
+const VERSION = 'v8-light-memory-map';
 const SHELL_CACHE = 'jota-shell-' + VERSION;
 const TILE_CACHE = 'jota-tiles-v1';
 const SHELL = [
