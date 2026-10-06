@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "JOTA-JOTI Camera",
+  "short_name": "JOTA Camera",
+  "description": "Take photos and videos during JOTA-JOTI, complete challenges and send them to the organisers.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d0d10",
+  "theme_color": "#0d0d10",
+  "lang": "en-AU",
+  "categories": ["photo", "social", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

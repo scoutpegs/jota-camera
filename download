@@ -1,0 +1,7 @@
+# Local/developer files
+.DS_Store
+Thumbs.db
+node_modules/
+.env
+.env.*
+*.log
