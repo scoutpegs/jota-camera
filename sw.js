@@ -7,7 +7,7 @@ const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/util.js', 'js/db.js', 'js/debug.js', 'js/identity.js', 'js/api.js', 'js/supa.js', 'js/backend.js', 'js/config.js', 'js/location.js',
   'js/submissions.js', 'js/uploader.js', 'js/backup.js', 'js/audio.js', 'js/camera.js', 'js/camera-ui.js', 'js/tilemap.js', 'js/data.js',
-  'js/challenges.js', 'js/sounds.js', 'js/install.js', 'js/onboard.js', 'js/review.js', 'js/posts.js', 'js/map-view.js', 'js/settings.js',
+  'js/challenges.js', 'js/sounds.js', 'js/sheet-config.js', 'js/install.js', 'js/onboard.js', 'js/review.js', 'js/posts.js', 'js/map-view.js', 'js/settings.js',
   'icons/logo.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 

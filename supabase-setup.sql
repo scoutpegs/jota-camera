@@ -288,6 +288,8 @@ insert into public.settings(key, value) values
   ('aButtonLabel', to_jsonb('A'::text)),
   ('aButtonUrl', to_jsonb(''::text)),
   ('tileUrl', to_jsonb('https://tile.openstreetmap.org/{z}/{x}/{y}.png'::text)),
+  ('mapUrl', to_jsonb('https://www.google.com/maps/@?api=1&map_action=map&center=-30.7745%2C121.488&zoom=13'::text)),
+  ('mapTileUrl', to_jsonb('https://tile.openstreetmap.org/{z}/{x}/{y}.png'::text)),
   ('mapCenterLat', '-30.7745'::jsonb),
   ('mapCenterLon', '121.488'::jsonb),
   ('mapZoom', '13'::jsonb),

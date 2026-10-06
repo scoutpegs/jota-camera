@@ -162,3 +162,34 @@ Google Apps Script web apps: https://developers.google.com/apps-script/guides/we
 Google Apps Script deployment: https://developers.google.com/apps-script/concepts/deployments
 
 GitHub Pages: https://docs.github.com/en/pages
+
+
+## Google Sheet map source
+
+`setup()` creates two sheets named **Map Settings** and **Locations**. The public app reads the map configuration through the Apps Script web app and caches the data so the locations remain available without internet. Apps Script also mirrors the current location rows into Supabase every five minutes.
+
+### Map Settings sheet
+
+Columns: `Key | Value | Description`
+
+Use these rows:
+
+| Key | What to enter |
+| --- | --- |
+| `mapUrl` | A Google Maps URL for the event/map |
+| `mapTileUrl` | Tile URL used by the lightweight in-app map |
+| `mapCenterLat` | Starting latitude |
+| `mapCenterLon` | Starting longitude |
+| `mapZoom` | Starting zoom |
+
+Google Maps URLs support `api=1` and can be used as a direct cross-platform map link.
+
+### Locations sheet
+
+Columns, in this exact order:
+
+`ID | Name | Description | Instructions | Latitude | Longitude | Category | Icon | Points | PhotoRequired | VideoAllowed | Active | ChallengeNumbers`
+
+Leave **ID** blank when you add a new location. The Apps Script creates a UUID automatically. Enter latitude/longitude as decimal degrees. Use `true` or `false` in the Yes/No fields. Put challenge numbers in `ChallengeNumbers`, for example `1, 4, 12`.
+
+The **Map pins** page in Admin no longer edits Supabase locations directly. It shows what is currently in the Sheet and provides links to open the Sheet, open the Google map URL, and manually sync Sheet → Supabase.

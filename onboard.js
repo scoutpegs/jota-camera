@@ -45,7 +45,7 @@ export function mountOnboarding(root, done) {
       check();
     } else if (step === 'install') {
       shell(installPanel({
-        onContinue: (how) => { if (how === 'browser') dismissInstall(); next(); },
+        onContinue: (how) => { dismissInstall(); next(); },
       }));
     }
   }

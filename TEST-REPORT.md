@@ -1,51 +1,45 @@
-# Test report
+# JOTA-JOTI Camera validation report
 
-Build checked: JOTA-JOTI Camera backup-ready package
+Build checked: 6 October 2026
 
-## Checks completed here
+## Automated checks
 
-- All application JS files passed `node --check` in three consecutive runs.
-- Apps Script `Code.gs` was syntax-checked as JavaScript in three consecutive runs.
-- All local JavaScript imports were checked against their target files and named exports.
-- Local HTML asset references were checked.
-- Named import/export references were checked and no mismatches were found.
-- Service worker shell assets were checked against the package.
-- The organiser password was scanned for and is not present in the package.
-- Old setup placeholders and the previous untested warning were removed from the shipped README and setup guide.
-- The old `_old-cloudflare` implementation is excluded from the final package.
-- IndexedDB schema upgrade was hardened so existing object stores are not recreated during an upgrade.
-- The service worker cache version was bumped so the new backup module is loaded after deployment.
-- The media limit is consistent across client, Supabase SQL and backup logic at 30 MB.
-- Drive fallback is idempotent by submission/file name.
-- A 30 MiB Drive-fallback payload was generated in a unit test and measured at about 40.00 MiB after base64 encoding, below the current 50 MiB Apps Script URL Fetch POST limit.
-- Local media is not deleted after a Drive fallback until the app sees a confirmed `DONE` backup state in Supabase.
+The package was checked repeatedly for:
 
-## What could not be live-tested from this build environment
+- JavaScript syntax in every `js/*.js` file
+- Admin JavaScript syntax
+- Google Apps Script syntax
+- relative import paths
+- required PWA/service-worker files
+- embedded configuration consistency
+- password leakage into the package
+- Google Sheet map field names
+- Apps Script Sheet parsing, UUID generation, boolean parsing, map configuration output, Sheet -> Supabase sync calls, and Google Drive fallback validation
+- ZIP archive integrity after packaging
 
-The container used to build the ZIP cannot reach the project's Supabase or Google Apps Script internet endpoints, and Chromium navigation to the local test server is blocked by the container sandbox. Because of that, I did **not** claim a live upload or live Drive backup test that I could not actually perform.
+The Google Apps Script unit harness also verifies that blank latitude/longitude rows are ignored, which prevents empty Sheet rows from becoming false coordinates at `0,0`.
 
-The package therefore needs one real account-side test after you deploy it: submit one photo, submit one video, test one offline queue item, and run the storage-full simulator.
+## Important live-service limitation
 
-## Expected live result
+A live browser session against GitHub Pages, Supabase and the Apps Script deployment could not be completed from the build environment because external browser/network access is blocked here. The code was therefore tested statically and with local/unit simulations, but the final account-side smoke test must be done from the published site.
 
-Normal path: `SUPABASE` upload followed by `DUAL` backup confirmation.
+## Required live smoke test
 
-Storage-full path: `DRIVE` provider, with the Drive file visible from Organiser -> Google backup.
+1. Open the published GitHub Pages URL over HTTPS.
+2. Enter a participant name.
+3. Allow camera and microphone when requested.
+4. Allow location if desired.
+5. Take a photo and submit it.
+6. Record a short video and submit it.
+7. Confirm the participant can see both in My posts.
+8. Confirm the organiser can see both in `/admin/`.
+9. Confirm the original media can be downloaded.
+10. Confirm a normal upload is backed up to Google Drive.
+11. Turn on Test mode -> `Pretend Supabase storage is full` and submit a small photo.
+12. Confirm the fallback reaches Google Drive and the local file is not removed before the backup is confirmed.
+13. Edit `Map Settings` and `Locations` in Google Sheets and confirm the participant Map tab updates.
+14. Turn off internet, capture and submit, close/reopen the app, reconnect, and confirm the queue uploads without creating a duplicate.
 
-## Build contents
+## Google Sheet map source
 
-Public app: `index.html`
-
-Organiser app: `admin/index.html`
-
-Supabase SQL: `setup/supabase-setup.sql`
-
-Google Apps Script: `google-apps-script/Code.gs`
-
-
-## Updated deployment check
-
-The browser backup endpoint in `js/backend.js` was updated to the current Apps Script deployment supplied for this build:
-`https://script.google.com/macros/s/AKfycbwKMnfKDyF-Bh1U_SOI021lIOeNMa_yg-P1nzf_Wi3qGx2MNHLS-xq5N-K1HVEfp-dg/exec`
-
-The Apps Script `setup()` function no longer waits on a password prompt; it requires `SUPABASE_PASSWORD` to already exist in Script Properties, which prevents the five-minute hang seen during setup.
+The participant Map tab reads the current `Map Settings` and `Locations` data through Apps Script and caches it for offline use. The Supabase copy is a mirror for challenge relationships and fallback operation. `Active=false` rows are kept in the Sheet/admin view but hidden from participants.

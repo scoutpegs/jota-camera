@@ -72,6 +72,20 @@ const save = (blob, name) => { const a = document.createElement('a'); a.href = U
 const orq = (cols, t) => `or=(${cols.map((c) => `${c}.ilike.*${t}*`).join(',')})`;
 const clean = (s) => String(s || '').replace(/[,()*%\\:"']/g, ' ').trim().slice(0, 60);
 
+const loadSheetConfigAdmin = (timeout = 7000) => new Promise((resolve) => {
+  if (!BU || !BK) return resolve(null);
+  const cb = `__jjAdminSheet_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const script = document.createElement('script');
+  let done = false;
+  let timer;
+  const finish = (v) => { if (done) return; done = true; clearTimeout(timer); delete window[cb]; script.remove(); resolve(v); };
+  window[cb] = (v) => finish(v && v.ok !== false ? v : null);
+  script.onerror = () => finish(null);
+  script.src = `${BU}?op=publicConfig&key=${encodeURIComponent(BK)}&callback=${encodeURIComponent(cb)}&_=${Date.now()}`;
+  timer = setTimeout(() => finish(null), timeout);
+  document.head.append(script);
+});
+
 /* ---------- Media ---------- */
 let mq = { q: '', type: '', review: '', upload: '', offset: 0 }, items = [], selected = new Set();
 const mediaFilter = () => {
@@ -238,21 +252,23 @@ async function sounds() {
 }
 
 async function map() {
-  const rows = await sb('locations?select=*&order=name');
-  const list = rows.map(camel);
-  const PF = [['name', 'Pin name'], ['description', 'Description', 'area'], ['instructions', 'Instructions', 'area'], ['latitude', 'Latitude', 'number'], ['longitude', 'Longitude', 'number'],
-    ['category', 'Category'], ['icon', 'Icon (one emoji or letter)'], ['points', 'Points', 'number'], ['active', 'Show on map', 'check']];
-  pane(`<div class="row"><button class="btn pri" id="new">Add pin</button><button id="imp">Import pins (JSON)</button></div>
-  <div class="card"><table><tr><th>Pin</th><th>Position</th><th></th></tr>${list.map((p) => `<tr><td>${esc(p.name)}${p.active ? '' : ' <span class="tag">hidden</span>'}</td><td>${p.latitude}, ${p.longitude}</td>
-  <td><button data-e="${p.id}">Edit</button> <button class="bad" data-d="${p.id}">Delete</button></td></tr>`).join('') || '<tr><td colspan=3 class="muted">No pins yet.</td></tr>'}</table></div><dialog id="dlg"></dialog>`);
-  editor('locations', PF, list, map, { title: 'pin' });
-  $('#imp').onclick = async () => {
-    const t = prompt('Paste a JSON list like [{"name":"Hall","latitude":-30.77,"longitude":121.48}]'); if (!t) return;
-    try {
-      const pins = JSON.parse(t).map((p) => snake({ active: true, ...p })).map((p) => ({ name: p.name, description: p.description || '', instructions: p.instructions || '', latitude: Number(p.latitude), longitude: Number(p.longitude), category: p.category || '', icon: p.icon || '', points: Number(p.points) || 0, active: p.active !== false }));
-      await sb('locations', { method: 'POST', body: pins }); audit('Imported pins', '', pins.length + ' pins'); map().catch(fail);
-    } catch (e) { fail(e); }
-  };
+  const sheet = await loadSheetConfigAdmin().catch(() => null);
+  const list = (sheet && Array.isArray(sheet.locations) ? sheet.locations : []).map((p) => ({
+    id: String(p.id), name: String(p.name || ''), description: String(p.description || ''), instructions: String(p.instructions || ''),
+    latitude: Number(p.latitude), longitude: Number(p.longitude), category: String(p.category || ''), icon: String(p.icon || ''),
+    points: Number(p.points || 0), photoRequired: !!p.photoRequired, videoAllowed: p.videoAllowed !== false, active: p.active !== false,
+    challengeNumbers: Array.isArray(p.challengeNumbers) ? p.challengeNumbers : [],
+  })).filter((p) => p.id && p.name && Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+  const sheetUrl = sheet && sheet.sheetUrl ? sheet.sheetUrl : '';
+  const syncUrl = `${BU}?op=syncSheet&key=${encodeURIComponent(BK)}`;
+  const mapUrl = sheet && sheet.settings && sheet.settings.mapUrl ? String(sheet.settings.mapUrl) : '';
+  pane(`<div class="card"><h2>Map pins</h2><p>Google Sheets is the source of truth for the map URL and location list. Edit locations in the <b>Locations</b> sheet, not here.</p>
+    <div class="row">${sheetUrl ? `<a class="btn pri" href="${esc(sheetUrl)}" target="_blank" rel="noopener">Open Google Sheet</a>` : ''}
+    ${mapUrl ? `<a class="btn" href="${esc(mapUrl)}" target="_blank" rel="noopener">Open Google Maps</a>` : ''}
+    ${BU ? `<a class="btn" href="${esc(syncUrl)}" target="_blank" rel="noopener">Sync Sheet → Supabase</a>` : ''}</div>
+    <p class="muted">${sheet ? `${list.length} valid locations loaded from the Sheet${sheet.updatedAt ? ` · updated ${fmt(sheet.updatedAt)}` : ''}.` : 'The Google Sheet could not be read. Check the Apps Script deployment and its web-app URL.'}</p></div>
+    <div class="card"><table><tr><th>Pin</th><th>Position</th><th>Challenges</th><th>Status</th></tr>${list.map((p) => `<tr><td>${esc(p.icon ? p.icon+' ' : '')}${esc(p.name)}</td><td>${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}</td><td>${esc(p.challengeNumbers.join(', ')) || '<span class="muted">none</span>'}</td><td>${p.active ? 'Active' : '<span class="tag">hidden</span>'}</td></tr>`).join('') || '<tr><td colspan=4 class="muted">No valid locations yet. Add rows to the Locations sheet.</td></tr>'}</table></div>
+    <div class="card"><h3>Locations sheet columns</h3><p class="muted">ID, Name, Description, Instructions, Latitude, Longitude, Category, Icon, Points, PhotoRequired, VideoAllowed, Active, ChallengeNumbers</p><p class="muted">For ChallengeNumbers, use numbers separated by commas, for example <code>1, 4, 12</code>.</p></div>`);
 }
 
 async function people() {
@@ -270,7 +286,7 @@ async function settings() {
   pane(`<div class="card" id="sf">${form(SET, s)}<p><button class="btn pri" id="ok">Save settings</button></p></div>`);
   $('#ok').onclick = async () => {
     try {
-      const v = read($('#sf'), SET); v.maxVideoSeconds = Math.min(60, Math.max(5, v.maxVideoSeconds || 60)); v.maxCustomAudioSeconds = Math.min(120, Math.max(3, v.maxCustomAudioSeconds || 15));
+      const v = read($('#sf'), SET); v.maxVideoSeconds = Math.min(120, Math.max(5, v.maxVideoSeconds || 60)); v.maxCustomAudioSeconds = Math.min(120, Math.max(3, v.maxCustomAudioSeconds || 15));
       await sb('settings?on_conflict=key', { method: 'POST', body: Object.entries(v).map(([key, value]) => ({ key, value })), headers: { prefer: 'resolution=merge-duplicates' } });
       audit('Changed settings'); alert('Saved. Phones pick it up next time they are online.');
     } catch (e) { fail(e); }

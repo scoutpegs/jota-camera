@@ -20,9 +20,9 @@ A phone-first JOTA-JOTI photo and video app for Kalgoorlie Scout Group. Particip
 
 ## Important security rule
 
-The organiser password is intentionally **not** inside this ZIP. Run `setup()` in the bound Google Apps Script project and enter the password when prompted. Apps Script stores it in Script Properties.
+The organiser password is intentionally **not** inside this ZIP. Before running `setup()`, add `SUPABASE_PASSWORD` in Apps Script Project Settings -> Script Properties. Apps Script reads it there and never writes it into the code.
 
-The browser contains only the Supabase publishable key and the non-secret backup client key. The organiser password is never shipped to the browser. Never put a Supabase service-role key in this project or GitHub.
+The browser contains only the Supabase publishable key and the non-secret backup client key. The map configuration is read publicly from the Apps Script `publicConfig` endpoint and contains no organiser secret. The organiser password is never shipped to the browser. Never put a Supabase service-role key in this project or GitHub.
 
 ## Publish order
 
@@ -41,3 +41,19 @@ Read `SETUP.md` for the exact click-by-click setup. Read `TEST-REPORT.md` for wh
 ## Current Apps Script endpoint
 
 `https://script.google.com/macros/s/AKfycbwKMnfKDyF-Bh1U_SOI021lIOeNMa_yg-P1nzf_Wi3qGx2MNHLS-xq5N-K1HVEfp-dg/exec`
+
+
+Map URL and location pins are maintained in Google Sheets through the Apps Script web app. The public camera app reads and caches that data, while Apps Script maintains the Supabase mirror used by challenges.
+
+
+## Google Sheet map source
+
+The map URL and the complete public location list come from the organiser Google Sheet. The Apps Script creates `Map Settings` and `Locations` automatically. The public app reads the Sheet through the Apps Script web app and caches it for offline use.
+
+`Map Settings` columns: `Key | Value | Description`
+
+Use `mapUrl`, `mapTileUrl`, `mapCenterLat`, `mapCenterLon`, and `mapZoom`. `mapUrl` is the Google Maps link opened by the Map tab.
+
+`Locations` columns: `ID | Name | Description | Instructions | Latitude | Longitude | Category | Icon | Points | PhotoRequired | VideoAllowed | Active | ChallengeNumbers`
+
+Leave `ID` blank for a new row. The Apps Script will assign a UUID. `Active=false` hides the pin from participants without deleting the row. `ChallengeNumbers` accepts values such as `1, 4, 12`.

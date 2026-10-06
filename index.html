@@ -1,14 +1,46 @@
 <!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>JOTA-JOTI Camera · Kalgoorlie Scout Group · Organiser</title>
-<meta name="robots" content="noindex">
-<link rel="icon" href="../icons/icon-192.png">
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JOTA-JOTI Camera · Kalgoorlie Scout Group</title>
+<meta name="description" content="Take photos and videos during JOTA-JOTI, complete challenges and send them to the organisers.">
+<meta name="theme-color" content="#0d0d10">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JOTA Camera">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="admin.css">
-</head><body>
-<header><img src="../icons/logo.png" alt=""><h1>JOTA-JOTI Camera <span>Organiser</span></h1><button id="out" hidden>Log out</button></header>
-<main id="app"></main><footer class="site-credit">Made by Hunter Miller from Boulder Scout Hall</footer>
-<script type="module" src="admin.js"></script>
-</body></html>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar" hidden>
+    <img class="logo" src="icons/logo.png" alt="">
+    <span class="title">JOTA-JOTI</span>
+    <span class="spacer"></span>
+    <span class="status" id="status" role="status" aria-live="polite"><span class="dot"></span><span id="status-text">Online</span></span>
+    <button class="who" id="who" aria-label="Settings"></button>
+  </header>
+  <main id="views">
+    <section class="view fill" id="v-onboard" aria-label="Welcome"></section>
+    <section class="view fill" id="v-camera" aria-label="Camera"></section>
+    <section class="view fill" id="v-review" aria-label="Review"></section>
+    <section class="view" id="v-submit" aria-label="Submit"></section>
+    <section class="view fill" id="v-map" aria-label="Map"></section>
+    <section class="view" id="v-challenges" aria-label="Challenges"></section>
+    <section class="view" id="v-posts" aria-label="My posts"></section>
+    <section class="view" id="v-settings" aria-label="Settings"></section>
+  </main>
+  <nav id="nav" hidden aria-label="Main"></nav>
+<footer class="site-credit">Made by Hunter Miller from Boulder Scout Hall</footer>
+</div>
+<noscript><p style="padding:24px;color:#fff">JOTA-JOTI Camera needs JavaScript. Please turn it on in your browser settings.</p></noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

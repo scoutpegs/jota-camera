@@ -18,10 +18,20 @@ const DEFAULTS = Object.freeze({
   BACKUPS_SHEET: 'Backups',
   ERRORS_SHEET: 'Backup Errors',
   HEALTH_SHEET: 'Backup Health',
+  MAP_SETTINGS_SHEET: 'Map Settings',
+  LOCATIONS_SHEET: 'Locations',
+  MAP_SETTINGS_HEADERS: ['Key', 'Value', 'Description'],
+  LOCATION_HEADERS: ['ID', 'Name', 'Description', 'Instructions', 'Latitude', 'Longitude', 'Category', 'Icon', 'Points', 'PhotoRequired', 'VideoAllowed', 'Active', 'ChallengeNumbers'],
+  MAP_DEFAULTS: {
+    mapUrl: 'https://www.google.com/maps/@?api=1&map_action=map&center=-30.7745%2C121.488&zoom=13',
+    mapTileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    mapCenterLat: -30.7745,
+    mapCenterLon: 121.488,
+    mapZoom: 13,
+  },
 });
 
 function setup() {
-  const ui = SpreadsheetApp.getUi();
   const props = PropertiesService.getScriptProperties();
   const password = String(props.getProperty('SUPABASE_PASSWORD') || '').trim();
   if (!password) {
@@ -50,19 +60,175 @@ function setup() {
   ensureSheet_(ss, DEFAULTS.HEALTH_SHEET, [
     'Time', 'Check', 'Result', 'Details'
   ]);
+  ensureMapSheets_(ss);
 
   const folder = getBackupFolder_();
   props.setProperty('BACKUP_FOLDER_ID', folder.getId());
   ensureTrigger_();
-  writeHealth_('setup', 'OK', 'Backup folder and trigger are configured.');
+  ensureSheetSyncTrigger_();
 
+  const sync = syncSheetToSupabase();
   const test = testBackup();
-  ui.alert(
-    'JOTA-JOTI backup setup complete',
-    `Drive folder: ${folder.getName()}\n\nSupabase organiser login: ${test.supabase ? 'OK' : 'FAILED'}\nDrive access: ${test.drive ? 'OK' : 'FAILED'}\n5-minute backup trigger: installed\n\nThe web app endpoint is ready. Test one real photo and one real video from the published site.`,
-    ui.ButtonSet.OK
-  );
-  return test;
+  const details = [
+    `Drive folder: ${folder.getName()}`,
+    `Supabase organiser login: ${test.supabase ? 'OK' : 'FAILED'}`,
+    `Drive access: ${test.drive ? 'OK' : 'FAILED'}`,
+    `Map Sheet: ${sync && sync.ok ? `${sync.locations || 0} locations synced` : 'SYNC FAILED'}`,
+    'Backup trigger: every 5 minutes',
+    'Map sync trigger: every 5 minutes',
+    `Google Sheet: ${ss.getUrl()}`,
+  ].join('\n');
+  writeHealth_('setup', test.supabase && test.drive && sync && sync.ok ? 'OK' : 'FAILED', details);
+  try { ss.toast('JOTA-JOTI setup complete. Check the Map Settings and Locations sheets.', 'JOTA-JOTI', 8); } catch (_) { /* toast is optional */ }
+  console.log(details);
+  return { ok: !!(test.supabase && test.drive && sync && sync.ok), test, sync, sheetUrl: ss.getUrl() };
+}
+
+function ensureMapSheets_(ss) {
+  const settings = ensureSheet_(ss, DEFAULTS.MAP_SETTINGS_SHEET, DEFAULTS.MAP_SETTINGS_HEADERS);
+  if (settings.getLastRow() < 2) {
+    const rows = [
+      ['mapUrl', DEFAULTS.MAP_DEFAULTS.mapUrl, 'Google Maps URL opened by the Map tab. A Google Maps URL with api=1 is recommended.'],
+      ['mapTileUrl', DEFAULTS.MAP_DEFAULTS.mapTileUrl, 'Map tile source used for the lightweight in-app map.'],
+      ['mapCenterLat', DEFAULTS.MAP_DEFAULTS.mapCenterLat, 'Initial map centre latitude.'],
+      ['mapCenterLon', DEFAULTS.MAP_DEFAULTS.mapCenterLon, 'Initial map centre longitude.'],
+      ['mapZoom', DEFAULTS.MAP_DEFAULTS.mapZoom, 'Initial map zoom level.'],
+    ];
+    settings.getRange(2, 1, rows.length, 3).setValues(rows);
+  }
+  const locations = ensureSheet_(ss, DEFAULTS.LOCATIONS_SHEET, DEFAULTS.LOCATION_HEADERS);
+  locations.getRange(1, 1, 1, DEFAULTS.LOCATION_HEADERS.length).setFontWeight('bold');
+  settings.getRange(1, 1, 1, DEFAULTS.MAP_SETTINGS_HEADERS.length).setFontWeight('bold');
+  return { settings, locations };
+}
+
+function readMapSheet_() {
+  const ss = getSpreadsheet_();
+  const { settings: settingsSheet, locations: locationsSheet } = ensureMapSheets_(ss);
+  const settings = {};
+  const settingRows = Math.max(0, settingsSheet.getLastRow() - 1);
+  if (settingRows) {
+    const values = settingsSheet.getRange(2, 1, settingRows, 2).getValues();
+    for (const [key, value] of values) {
+      const k = String(key || '').trim();
+      if (!k) continue;
+      settings[k] = value instanceof Date ? value.toISOString() : value;
+    }
+  }
+  Object.entries(DEFAULTS.MAP_DEFAULTS).forEach(([k, v]) => { if (settings[k] === undefined || settings[k] === '') settings[k] = v; });
+
+  const locations = [];
+  const rowCount = Math.max(0, locationsSheet.getLastRow() - 1);
+  let changed = false;
+  if (rowCount) {
+    const values = locationsSheet.getRange(2, 1, rowCount, DEFAULTS.LOCATION_HEADERS.length).getValues();
+    for (let i = 0; i < values.length; i++) {
+      const r = values[i];
+      const name = cleanText_(r[1], 120);
+      const latRaw = String(r[4] == null ? '' : r[4]).trim();
+      const lonRaw = String(r[5] == null ? '' : r[5]).trim();
+      const lat = Number(latRaw);
+      const lon = Number(lonRaw);
+      if (!name || latRaw === '' || lonRaw === '' || !Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+      let id = cleanText_(r[0], 80);
+      if (!/^[0-9a-f-]{36}$/i.test(id)) {
+        id = Utilities.getUuid();
+        locationsSheet.getRange(i + 2, 1).setValue(id);
+        changed = true;
+      }
+      const pins = {
+        id,
+        name,
+        description: cleanText_(r[2], 500),
+        instructions: cleanText_(r[3], 500),
+        latitude: lat,
+        longitude: lon,
+        category: cleanText_(r[6], 80),
+        icon: cleanText_(r[7], 20),
+        points: toInt_(r[8], 0),
+        photoRequired: toBool_(r[9], false),
+        videoAllowed: toBool_(r[10], true),
+        active: toBool_(r[11], true),
+        challengeNumbers: splitList_(r[12]),
+      };
+      locations.push(pins);
+    }
+  }
+  if (changed) SpreadsheetApp.flush();
+  return {
+    ok: true,
+    settings,
+    locations,
+    sheetUrl: ss.getUrl(),
+    sheetId: ss.getId(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function syncSheetToSupabase() {
+  const model = readMapSheet_();
+  const settingKeys = ['mapUrl', 'mapTileUrl', 'mapCenterLat', 'mapCenterLon', 'mapZoom'];
+  const settingRows = settingKeys.filter((k) => model.settings[k] !== undefined).map((key) => ({ key, value: jsonValue_(model.settings[key]) }));
+  if (settingRows.length) restUpsert_('settings?on_conflict=key', settingRows, 'resolution=merge-duplicates,return=minimal');
+  const rows = model.locations.map((p) => ({
+    id: p.id, name: p.name, description: p.description, instructions: p.instructions,
+    latitude: p.latitude, longitude: p.longitude, category: p.category, icon: p.icon,
+    points: p.points, photo_required: p.photoRequired, video_allowed: p.videoAllowed, active: p.active,
+  }));
+  if (rows.length) restUpsert_('locations?on_conflict=id', rows, 'resolution=merge-duplicates,return=minimal');
+  // Keep the Supabase mirror from retaining map pins that were deleted from the Sheet.
+  const current = restGet_('locations?select=id');
+  const currentIds = new Set(rows.map((r) => r.id));
+  const removed = current.map((r) => r.id).filter((id) => !currentIds.has(id));
+  if (removed.length) {
+    if (rows.length) {
+      const keep = rows.map((r) => encodeURIComponent(r.id)).join(',');
+      restPatch_(`locations?id=not.in.(${keep})`, { active: false }, true);
+    } else {
+      restPatch_('locations?active=eq.true', { active: false }, true);
+    }
+  }
+  writeHealth_('sheet-sync', 'OK', `${model.locations.length} locations; ${settingRows.length} map settings synced; ${removed.length} old pins deactivated.`);
+  return { ok: true, locations: model.locations.length, settings: settingRows.length, sheetUrl: model.sheetUrl, updatedAt: model.updatedAt };
+}
+
+function publicConfig_() {
+  const model = readMapSheet_();
+  const settings = {};
+  ['mapUrl', 'mapTileUrl', 'mapCenterLat', 'mapCenterLon', 'mapZoom'].forEach((k) => { if (model.settings[k] !== undefined) settings[k] = model.settings[k]; });
+  return {
+    ok: true,
+    settings,
+    locations: model.locations,
+    sheetUrl: model.sheetUrl,
+    updatedAt: model.updatedAt,
+  };
+}
+
+function cleanText_(value, max) {
+  return String(value == null ? '' : value).replace(/[\\\u0000-\u001f<>]/g, '').trim().slice(0, max);
+}
+function toBool_(value, fallback) {
+  if (typeof value === 'boolean') return value;
+  const s = String(value == null ? '' : value).trim().toLowerCase();
+  if (!s) return fallback;
+  if (['true', '1', 'yes', 'y', 'on'].includes(s)) return true;
+  if (['false', '0', 'no', 'n', 'off'].includes(s)) return false;
+  return fallback;
+}
+function toInt_(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n) : fallback;
+}
+function splitList_(value) {
+  return String(value == null ? '' : value).split(/[;,\n|]+/).map((x) => x.trim()).filter(Boolean).slice(0, 50);
+}
+function jsonValue_(value) {
+  if (typeof value === 'boolean' || typeof value === 'number') return value;
+  const s = String(value == null ? '' : value).trim();
+  if (/^(true|false)$/i.test(s)) return s.toLowerCase() === 'true';
+  if (s !== '' && /^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+  return s;
 }
 
 function testBackup() {
@@ -100,6 +266,15 @@ function doGet(e) {
   if (p.op === 'status') {
     if (!validClientKey_(p.key)) return json_({ ok: false, error: 'BAD_KEY' });
     return json_(backupStatus_());
+  }
+  if (p.op === 'publicConfig') {
+    if (!validClientKey_(p.key)) return json_({ ok: false, error: 'BAD_KEY' });
+    const payload = publicConfig_();
+    return p.callback ? jsonp_(payload, p.callback) : json_(payload);
+  }
+  if (p.op === 'syncSheet') {
+    if (!validClientKey_(p.key)) return json_({ ok: false, error: 'BAD_KEY' });
+    return json_(syncSheetToSupabase());
   }
   return json_({ ok: true, service: 'jota-joti-drive-backup', time: new Date().toISOString() });
 }
@@ -370,9 +545,61 @@ function restPatch_(path, body, retry) {
   return true;
 }
 
+function restUpsert_(path, body, prefer) {
+  const s = getAdminSession_(false);
+  const url = `${getProp_('SUPABASE_URL', DEFAULTS.SUPABASE_URL)}/rest/v1/${path}`;
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post', contentType: 'application/json', payload: JSON.stringify(body),
+    headers: {
+      apikey: getProp_('SUPABASE_PUBLISHABLE_KEY', DEFAULTS.SUPABASE_PUBLISHABLE_KEY),
+      Authorization: `Bearer ${s.access_token}`,
+      Prefer: prefer || 'return=minimal',
+    },
+    muteHttpExceptions: true,
+  });
+  const code = res.getResponseCode();
+  if (code === 401) {
+    PropertiesService.getScriptProperties().deleteProperty('SUPABASE_ACCESS_TOKEN');
+    PropertiesService.getScriptProperties().deleteProperty('SUPABASE_ACCESS_EXPIRES_AT');
+    return restUpsertRetry_(path, body, prefer);
+  }
+  if (code < 200 || code >= 300) throw new Error(`Supabase REST UPSERT failed (${code}): ${res.getContentText().slice(0, 800)}`);
+  return true;
+}
+
+function restUpsertRetry_(path, body, prefer) {
+  const s = getAdminSession_(true);
+  const url = `${getProp_('SUPABASE_URL', DEFAULTS.SUPABASE_URL)}/rest/v1/${path}`;
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post', contentType: 'application/json', payload: JSON.stringify(body),
+    headers: {
+      apikey: getProp_('SUPABASE_PUBLISHABLE_KEY', DEFAULTS.SUPABASE_PUBLISHABLE_KEY),
+      Authorization: `Bearer ${s.access_token}`,
+      Prefer: prefer || 'return=minimal',
+    },
+    muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() < 200 || res.getResponseCode() >= 300) throw new Error(`Supabase REST UPSERT failed (${res.getResponseCode()}): ${res.getContentText().slice(0, 800)}`);
+  return true;
+}
+
+function ensureSheetSyncTrigger_() {
+  const triggers = ScriptApp.getProjectTriggers();
+  const exists = triggers.some((t) => t.getHandlerFunction() === 'syncSheetToSupabase');
+  if (!exists) ScriptApp.newTrigger('syncSheetToSupabase').timeBased().everyMinutes(5).create();
+}
+
+function jsonp_(obj, callback) {
+  const cb = String(callback || '');
+  if (!/^[A-Za-z_$][0-9A-Za-z_$]*(?:\.[A-Za-z_$][0-9A-Za-z_$]*)*$/.test(cb)) return json_({ ok: false, error: 'BAD_CALLBACK' });
+  const body = `${cb}(${JSON.stringify(obj).replace(/</g, '\\u003c')});`;
+  return ContentService.createTextOutput(body).setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
 function ensureSheet_(ss, name, headers) {
   let sheet = ss.getSheetByName(name);
   if (!sheet) sheet = ss.insertSheet(name);
+  if (!headers || !headers.length) return sheet;
   if (sheet.getLastRow() === 0) sheet.appendRow(headers);
   const first = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
   if (first.join('\u001f') !== headers.join('\u001f')) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
