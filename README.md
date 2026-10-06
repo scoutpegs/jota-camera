@@ -40,7 +40,7 @@ Read `SETUP.md` for the exact click-by-click setup. Read `TEST-REPORT.md` for wh
 
 ## Current Apps Script endpoint
 
-`https://script.google.com/macros/s/AKfycbwKMnfKDyF-Bh1U_SOI021lIOeNMa_yg-P1nzf_Wi3qGx2MNHLS-xq5N-K1HVEfp-dg/exec`
+`https://script.google.com/macros/s/AKfycbxvOz7yfWfznj3E0q5ZuFL3tJRyBP2Z5C-1Ia-2Mla1EdOoKQxjOeIgULX89ciF7NR8/exec`
 
 
 Map URL and location pins are maintained in Google Sheets through the Apps Script web app. The public camera app reads and caches that data, while Apps Script maintains the Supabase mirror used by challenges.
@@ -60,4 +60,4 @@ Leave `ID` blank for a new row. The Apps Script will assign a UUID. `Active=fals
 
 
 ## GitHub root upload
-This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
+This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. Runtime files are intentionally at the repository root. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.

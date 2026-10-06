@@ -24,6 +24,46 @@ const factories = {
   settings: async (root) => (await import('./settings.js')).mountSettings(root, app),
 };
 
+let bootDone = false;
+
+function hideBoot() {
+  if (bootDone) return;
+  bootDone = true;
+  const boot = document.getElementById('boot');
+  if (!boot) return;
+  boot.classList.add('gone');
+  window.setTimeout(() => boot.remove(), 350);
+}
+
+function showBootError(error) {
+  const boot = document.getElementById('boot');
+  if (!boot || bootDone) return;
+  const msg = String(error?.message || error || 'Unknown startup error');
+  boot.dataset.warning = '1';
+  boot.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'boot-error';
+  const img = document.createElement('img');
+  img.src = 'logo.png';
+  img.alt = 'JOTA-JOTI';
+  const title = document.createElement('strong');
+  title.textContent = 'JOTA-JOTI Camera';
+  const text = document.createElement('p');
+  text.textContent = 'The app could not finish loading. Your saved photos and videos are not being deleted.';
+  const retry = document.createElement('button');
+  retry.className = 'btn';
+  retry.textContent = 'Reload';
+  retry.addEventListener('click', () => location.reload());
+  const details = document.createElement('details');
+  const summary = document.createElement('summary');
+  summary.textContent = 'Technical details';
+  const pre = document.createElement('pre');
+  pre.textContent = msg.slice(0, 500);
+  details.append(summary, pre);
+  box.append(img, title, text, retry, details);
+  boot.append(box);
+}
+
 export const app = {
   cfg, view: null, params: {},
   ctx: { mode: 'photo', challenge: null, sound: null },
@@ -145,28 +185,43 @@ async function begin(returning) {
     if (s && s.status === 'DRAFT') target = st;
   }
   await go(target.name, target.params, { replace: true });
+  hideBoot();
   if (returning) toast('Welcome back, ' + identity().name, '', 2200);
   updateStatus();
 }
 
 async function boot() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-  document.addEventListener('pointerdown', () => unlockAudio(), { passive: true }); // lets sounds play when recording starts
-  let dbOk = true;
-  try { await openDb(); } catch { dbOk = false; }
-  await loadIdentity();
-  await loadConfig();
-  window.addEventListener('online', updateStatus); window.addEventListener('offline', updateStatus);
-  window.addEventListener('jota-debug', updateStatus);
-  subEvents.addEventListener('change', updateStatus);
-  uploader.events.addEventListener('idle', updateStatus);
-  if (!dbOk) {
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').then((r) => r.update()).catch(() => {});
+    }
+    document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
+    let dbOk = true;
+    try { await openDb(); } catch (e) { dbOk = false; console.warn('IndexedDB unavailable', e); }
+    await loadIdentity();
+    await loadConfig();
+    window.addEventListener('online', updateStatus); window.addEventListener('offline', updateStatus);
+    window.addEventListener('jota-debug', updateStatus);
+    subEvents.addEventListener('change', updateStatus);
+    uploader.events.addEventListener('idle', updateStatus);
+    if (!dbOk) {
+      document.getElementById('v-onboard').classList.add('active');
+      document.getElementById('v-onboard').replaceChildren(
+        el('div', { class: 'onboard' },
+          el('h1', {}, 'Can’t save files here'),
+          el('p', {}, storageProblem(new Error('NO_IDB')).text),
+          el('button', { class: 'btn block', onclick: () => location.reload() }, 'Reload'))
+      );
+      return;
+    }
+    if (identity()) return begin(true);
     document.getElementById('v-onboard').classList.add('active');
-    document.getElementById('v-onboard').replaceChildren(el('div', { class: 'onboard' }, el('h1', {}, 'Can’t save files here'), el('p', {}, storageProblem(new Error('NO_IDB')).text)));
-    return;
+    mountOnboarding(document.getElementById('v-onboard'), () => begin(false));
+    hideBoot();
+  } catch (e) {
+    console.error('JOTA-JOTI startup failed', e);
+    showBootError(e);
   }
-  if (identity()) return begin(true);
-  document.getElementById('v-onboard').classList.add('active');
-  mountOnboarding(document.getElementById('v-onboard'), () => begin(false));
 }
+
 boot();

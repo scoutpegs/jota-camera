@@ -46,14 +46,24 @@
 <script>
 window.addEventListener('error', function(e){
   var b=document.getElementById('boot');
-  if(b && e && e.filename && /\.js$/.test(e.filename)){
-    b.innerHTML='<img src="logo.png" alt="JOTA-JOTI"><strong>JOTA-JOTI Camera</strong><span>Loading failed. Check that all files are uploaded to the repository root.</span>';
+  if(!b || b.classList.contains('gone') || !e) return;
+  if(e.filename && /\.js(?:\?|$)/.test(e.filename)) {
+    b.dataset.warning='1';
+    var span=b.querySelector('span');
+    if(span) span.textContent='The app hit a startup error. Please reload the page.';
   }
 });
-window.addEventListener('unhandledrejection', function(){
-  var b=document.getElementById('boot'); if(b) b.dataset.warning='1';
+window.addEventListener('unhandledrejection', function(e){
+  var b=document.getElementById('boot');
+  if(b && !b.classList.contains('gone')) b.dataset.warning='1';
 });
-setTimeout(function(){ var b=document.getElementById('boot'); if(b && document.querySelector('#topbar:not([hidden])')) b.classList.add('gone'); }, 1200);
+setTimeout(function(){
+  var b=document.getElementById('boot');
+  if(b && !b.classList.contains('gone')) {
+    var span=b.querySelector('span');
+    if(span) span.textContent='Still loading. You can reload safely.';
+  }
+}, 12000);
 </script>
 </body>
 </html>

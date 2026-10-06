@@ -6,7 +6,7 @@ Build checked: 6 October 2026
 
 The package was checked repeatedly for:
 
-- JavaScript syntax in every `js/*.js` file
+- JavaScript syntax in every `*.js` file
 - Admin JavaScript syntax
 - Google Apps Script syntax
 - relative import paths
@@ -46,4 +46,4 @@ The participant Map tab reads the current `Map Settings` and `Locations` data th
 
 
 ## GitHub root upload
-This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
+This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. Runtime files are intentionally at the repository root. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.

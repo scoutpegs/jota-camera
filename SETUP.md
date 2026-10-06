@@ -55,7 +55,7 @@ In Apps Script choose Deploy -> New deployment, select **Web app**, set **Execut
 
 The published site is already configured to use this Apps Script deployment:
 
-`https://script.google.com/macros/s/AKfycbwKMnfKDyF-Bh1U_SOI021lIOeNMa_yg-P1nzf_Wi3qGx2MNHLS-xq5N-K1HVEfp-dg/exec`
+`https://script.google.com/macros/s/AKfycbxvOz7yfWfznj3E0q5ZuFL3tJRyBP2Z5C-1Ia-2Mla1EdOoKQxjOeIgULX89ciF7NR8/exec`
 
 If you later create a different deployment, replace `GOOGLE_BACKUP_URL` in `js/backend.js` with the new `/exec` URL before publishing that version.
 
@@ -196,4 +196,4 @@ The **Map pins** page in Admin no longer edits Supabase locations directly. It s
 
 
 ## GitHub root upload
-This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
+This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. Runtime files are intentionally at the repository root. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
