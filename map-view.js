@@ -23,13 +23,14 @@ export function mountMap(root, app) {
   const banner = el('div', { class: 'map-banner', hidden: true });
   const place = el('div', { class: 'map-place' }, el('b', {}, 'Boulder · Kalgoorlie-Boulder'), el('span', {}, 'Western Australia'));
   const listBox = el('div', { class: 'page', hidden: true });
+  const emptyMap = el('div', { class: 'map-empty', hidden: true });
   const tools = el('div', { class: 'map-toolbar' },
     el('button', { class: 'tool', 'aria-label': 'Zoom in', onclick: () => map && map.zoomBy(1) }, icon('plus')),
     el('button', { class: 'tool', 'aria-label': 'Zoom out', onclick: () => map && map.zoomBy(-1) }, el('span', { style: { fontSize: '22px', lineHeight: 1 } }, '−')),
     el('button', { class: 'tool', id: 'locate', 'aria-label': 'Centre on my location', onclick: () => { const f = lastFix(); if (f && map) map.setView(f.latitude, f.longitude, Math.max(map.zoom, 16)); } }, icon('locate')),
     el('button', { class: 'tool', id: 'map-list', 'aria-label': 'Show locations as a list', 'aria-pressed': 'false', onclick: toggleList }, icon('posts')));
   const external = el('button', { class: 'map-external', hidden: true, onclick: () => { if (cfg.mapUrl) window.open(cfg.mapUrl, '_blank', 'noopener,noreferrer'); } }, icon('map'), el('span', {}, 'Open Google Maps'));
-  root.append(wrap, banner, place, external, tools, listBox);
+  root.append(wrap, banner, place, external, tools, emptyMap, listBox);
   let map = null, pins = [], challenges = [], done = new Set(), off = null, showingList = false;
 
   function toggleList() {
@@ -142,7 +143,15 @@ export function mountMap(root, app) {
       const [p, c, d] = await Promise.all([getPins(), getChallenges(), doneIds()]);
       pins = p.items; challenges = c.items; done = d;
       banner.hidden = !(p.offline || navigator.onLine === false);
-      banner.textContent = p.offline ? (pins.length ? 'Offline. The last saved Google Sheet locations are being used.' : 'Offline. No saved locations are available yet.') : `Locations loaded from the organiser Google Sheet${p.sheetUrl ? ' · ' + new URL(p.sheetUrl).hostname : ''}.`;
+      let sourceLabel = '';
+      if (p.sheetUrl) { try { sourceLabel = ' · ' + new URL(p.sheetUrl).hostname; } catch {} }
+      banner.textContent = p.offline ? (pins.length ? 'Offline. The last saved Google Sheet locations are being used.' : 'Offline. The Boulder base map is still available. Add locations when you are back online.') : `Locations loaded from the organiser Google Sheet${sourceLabel}.`;
+      const challengeCount = challenges.length;
+      emptyMap.hidden = !!(pins.length || challengeCount);
+      emptyMap.innerHTML = '';
+      if (!emptyMap.hidden) {
+        emptyMap.append(el('b', {}, 'Boulder map ready'), el('p', { class: 'small' }, 'The base map is available now. Locations and challenges from the organiser Google Sheet will appear here automatically.'));
+      }
       paint();
       const focusPoints = [...pins.map((x) => ({ lat: x.latitude, lon: x.longitude })), ...challenges.filter((c) => c.location).map((c) => ({ lat: Number(c.location.latitude), lon: Number(c.location.longitude) }))];
       if (app.ctx.mapFocus) { map.setView(Number(app.ctx.mapFocus.lat), Number(app.ctx.mapFocus.lon), Math.max(map.zoom, 16)); app.ctx.mapFocus = null; } else if (focusPoints.length) map.fitTo(focusPoints);

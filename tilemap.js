@@ -100,8 +100,8 @@ export class TileMap {
       if (!p) return;
       const pt = this.local(e);
       const dx = pt.x - p.x, dy = pt.y - p.y;
-      p.x = pt.x; p.y = pt.y;
       if (Math.hypot(pt.x - p.x0, pt.y - p.y0) > 6) this.moved = true;
+      p.x = pt.x; p.y = pt.y;
       if (this.pointers.size >= 2) {
         const now = this.pinchInfo();
         if (this.pinch && this.pinch.d > 0) {
@@ -255,16 +255,18 @@ export class TileMap {
     ctx.strokeStyle = '#d8dde1'; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.moveTo(w * .18, -30); ctx.bezierCurveTo(w * .30, h * .28, w * .23, h * .68, w * .52, h + 30); ctx.stroke();
     ctx.fillStyle = '#51636d'; ctx.textAlign = 'left';
-    ctx.font = '700 20px system-ui, sans-serif'; ctx.fillText('Boulder', 18, 42);
-    ctx.font = '12px system-ui, sans-serif'; ctx.fillText('Kalgoorlie-Boulder, Western Australia', 18, 62);
-    ctx.font = '11px system-ui, sans-serif'; ctx.fillStyle = '#6d7b83'; ctx.fillText('Map detail will appear when map tiles are available.', 18, h - 24);
+    ctx.font = '700 19px system-ui, sans-serif'; ctx.fillText('Boulder, Western Australia', 18, 40);
+    ctx.font = '12px system-ui, sans-serif'; ctx.fillStyle = '#617079'; ctx.fillText('Event map · live locations appear here when available', 18, 60);
+    ctx.font = '11px system-ui, sans-serif'; ctx.fillStyle = '#748189'; ctx.fillText('Offline base view · map tiles will layer in when available', 18, h - 20);
     ctx.restore();
   }
 
   draw() {
     const { ctx, w, h } = this;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.fillStyle = '#eef3ef'; ctx.fillRect(0, 0, w, h);
+    // Always draw the Boulder base first. Live OSM tiles are layered on top when available.
+    // That keeps the map useful during first load, weak signal and offline use.
+    this.drawOfflineFallback(ctx, w, h);
     const tz = clamp(Math.round(this.zoom), this.minZoom, this.maxZoom), scale = 2 ** (this.zoom - tz);
     let gotTile = false;
     const c = project(this.lat, this.lon, tz), n = 2 ** tz;
@@ -278,9 +280,6 @@ export class TileMap {
         if (t.ok) { ctx.drawImage(t.img, sx, sy, size, size); gotTile = true; } else ctx.strokeRect(sx + .5, sy + .5, size - 1, size - 1);
       }
     }
-    if (!gotTile) {
-      this.drawOfflineFallback(ctx, w, h);
-    }
     // you are here
     if (this.user) {
       const s = this.latLonToScreen(this.user.latitude, this.user.longitude);
@@ -290,7 +289,6 @@ export class TileMap {
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, 9, 0, 7); ctx.fill();
       ctx.fillStyle = '#3b82f6'; ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, 7); ctx.fill();
     }
-    if (gotTile) { ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(0, 0, w, h); }
     for (const m of this.markers) {
       const s = this.latLonToScreen(m.lat, m.lon);
       if (s.x < -60 || s.y < -70 || s.x > w + 60 || s.y > h + 70) continue;

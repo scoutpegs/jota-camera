@@ -5,10 +5,12 @@ import { cfg } from './config.js';
 import { createIdentity, renameIdentity, identity } from './identity.js';
 import { ensureRegistered } from './api.js';
 import { requestMediaPermissions } from './camera.js';
-import { needsInstallStep, installPanel, dismissInstall, isIOS } from './install.js';
+import { isIOS } from './install.js';
 
 export function mountOnboarding(root, done) {
-  const steps = ['welcome', isIOS && needsInstallStep() ? 'install' : null, 'name', !isIOS && needsInstallStep() ? 'install' : null].filter(Boolean);
+  // Keep the critical first-run path short: welcome -> name -> camera/microphone -> camera.
+  // Install help remains available from Settings so it never delays camera access.
+  const steps = ['welcome', 'name'];
   let idx = 0;
   const next = () => { idx++; idx >= steps.length ? finish() : render(); };
   const finish = () => { done(); };
@@ -47,10 +49,6 @@ export function mountOnboarding(root, done) {
       shell(el('h1', {}, 'What’s your name?'), el('p', { class: 'muted' }, 'Your name goes with every photo and video you send, so the organisers know who took it.'),
         el('label', { class: 'field' }, el('span', {}, 'Your name'), input), btn);
       check();
-    } else if (step === 'install') {
-      shell(installPanel({
-        onContinue: (how) => { dismissInstall(); next(); },
-      }));
     }
   }
   render();

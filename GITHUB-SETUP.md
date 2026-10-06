@@ -76,3 +76,7 @@ This build is intentionally flat. Upload the files directly into the repository 
 The built-in map opens centred on Boulder in the Kalgoorlie-Boulder area. Australia Post lists Boulder, WA as postcode 6432; postcode 6430 is used for Kalgoorlie and surrounding localities. The app uses the Boulder map centre and the organiser Google Sheet remains the source of truth for locations.
 
 In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to attach challenge numbers to a location. Those challenges then appear on the map and can launch the camera directly.
+
+
+## Upload layout
+Upload the contents of this package directly into the GitHub repository root. The runtime does not depend on css/js/icons subfolders.

@@ -85,3 +85,13 @@ Automated checks after the polish pass:
 - Automated syntax/import/path checks rerun after the memory-map changes
 
 Live phone camera/GPS testing still needs to be performed on the published HTTPS site because this build environment cannot grant camera/GPS permissions.
+
+
+## v10 platform finish validation
+- Fixed single-finger map panning and kept map fallback visible while live tiles load.
+- My posts now tracks the participant location when permission is available.
+- My posts supports persistent local removal of captures. Uploaded organiser copies are not deleted by the participant UI.
+- Challenge completion state only counts queued/uploading/uploaded submissions.
+- First-run flow is welcome -> name -> camera/microphone permission request -> camera; installation help remains in Settings.
+- Light-only visual pass removes gradient camera/review/memory surfaces and reduces shadows.
+- Google Sheet locations remain the map source; ChallengeNumbers links numbered challenges to those locations.

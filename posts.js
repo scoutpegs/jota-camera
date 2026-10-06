@@ -1,6 +1,7 @@
 // My posts: a map-first memory view. Every geotagged capture is pinned near where it was taken.
 import { el, icon, ago, toast, sheet } from './util.js';
 import { listSubs, getThumb, getMedia, discard, retryNow, events as subEvents } from './submissions.js';
+import { kv } from './db.js';
 import { events as upEvents, kick } from './uploader.js';
 import { api } from './api.js';
 import { identity } from './identity.js';
@@ -27,7 +28,7 @@ function distanceText(a, b) {
 }
 
 export function mountPosts(root, app) {
-  let urls = [], active = false, remoteCache = [], map = null, current = [], hasFitted = false, activeSheet = null, offFix = null, userFitted = false;
+  let urls = [], active = false, remoteCache = [], map = null, current = [], hasFitted = false, activeSheet = null, offFix = null, userFitted = false, hiddenIds = new Set();
   const objectUrls = new Map();
 
   const revoke = () => { objectUrls.forEach((u) => URL.revokeObjectURL(u)); objectUrls.clear(); urls = []; };
@@ -40,14 +41,36 @@ export function mountPosts(root, app) {
     const u = URL.createObjectURL(b); objectUrls.set(key, u); urls.push(u); return u;
   };
 
+  async function loadHidden() {
+    try { hiddenIds = new Set((await kv.get('hiddenPosts')) || []); } catch { hiddenIds = new Set(); }
+  }
+
+  async function hidePost(id) {
+    hiddenIds.add(String(id));
+    try { await kv.set('hiddenPosts', [...hiddenIds].slice(-500)); } catch {}
+  }
+
+  async function deletePost(s) {
+    const localOnly = s.status !== 'UPLOADED' && !s.mediaUrl;
+    const message = localOnly
+      ? 'Delete this saved post from this phone? This also removes its queued media.'
+      : 'Remove this post from My posts on this phone? The organiser copy will stay stored on the server.';
+    if (!window.confirm(message)) return;
+    await hidePost(s.id);
+    try { await discard(s.id); } catch {}
+    activeSheet?.close(); activeSheet = null;
+    toast(localOnly ? 'Post deleted from this phone.' : 'Post removed from My posts.', 'ok');
+    await render();
+  }
+
   async function loadRemote() {
     if (navigator.onLine === false || !identity() || !identity().registered) return;
     try { remoteCache = (await api('/api/my/submissions')).submissions || []; } catch { /* cached/local view remains usable */ }
   }
 
   function allUniqueSubs(local, remote) {
-    const byId = new Map(local.map((s) => [s.id, s]));
-    for (const r of remote) if (!byId.has(r.id)) byId.set(r.id, { ...r, status: 'UPLOADED' });
+    const byId = new Map(local.filter((s) => !hiddenIds.has(String(s.id))).map((s) => [s.id, s]));
+    for (const r of remote) if (!byId.has(r.id) && !hiddenIds.has(String(r.id))) byId.set(r.id, { ...r, status: 'UPLOADED' });
     return [...byId.values()].sort((a, b) => String(b.capturedAt).localeCompare(String(a.capturedAt)));
   }
 
@@ -140,9 +163,10 @@ export function mountPosts(root, app) {
         s.caption ? el('p', {}, s.caption) : null,
         el('p', { class: 'small muted' }, `${niceDate(s.capturedAt)} · ${niceTime(s.capturedAt)}${hasCoords(s) ? ' · ' + (s.accuracy ? `±${Math.round(Number(s.accuracy))} m` : 'location saved') : ''}`),
         s.challengeName ? el('div', { class: 'memory-challenge' }, el('b', {}, s.challengeName), el('span', {}, 'Challenge attached to this post')) : null,
-        el('div', { class: 'row' },
-          hasCoords(s) ? el('button', { class: 'btn grow', onclick: () => { activeSheet?.close(); activeSheet = null; map?.setView(Number(s.latitude), Number(s.longitude), Math.max(map.zoom, 17)); } }, 'Show on map') : null,
-          s.status === 'FAILED' ? el('button', { class: 'btn ghost grow', onclick: async () => { await retryNow(s.id); kick(); toast('Retry queued.', 'ok'); } }, 'Retry upload') : null)));
+        el('div', { class: 'row wrap' },
+          hasCoords(s) ? el('button', { class: 'btn small grow', onclick: () => { activeSheet?.close(); activeSheet = null; map?.setView(Number(s.latitude), Number(s.longitude), Math.max(map.zoom, 17)); } }, 'Show on map') : null,
+          s.status === 'FAILED' ? el('button', { class: 'btn small ghost grow', onclick: async () => { await retryNow(s.id); kick(); toast('Retry queued.', 'ok'); } }, 'Retry upload') : null,
+          el('button', { class: 'btn small danger grow', onclick: () => deletePost(s) }, 'Delete'))));
     activeSheet = sheet(body, { label: 'Post details', onClose: () => { activeSheet = null; } });
   }
 
@@ -160,13 +184,16 @@ export function mountPosts(root, app) {
       el('div', { class: 'memory-panel-head' }, el('div', {}, el('h2', {}, 'Your captures'), el('p', { class: 'small' }, 'Scroll the map or tap a capture to open it.')), stats),
       el('div', { class: 'memory-rail', id: 'memory-rail' }),
       el('div', { class: 'memory-no-location', id: 'memory-no-location', hidden: true }, el('b', {}, 'Posts without a location'), el('p', { class: 'small muted' }, 'These captures are still saved, but they were made without location permission.')),
-      el('div', { class: 'memory-no-location-list', id: 'memory-no-location-list' })));
+      el('div', { class: 'memory-no-location-list', id: 'memory-no-location-list' }));
     const controls = el('div', { class: 'memory-map-controls' },
       el('button', { class: 'memory-control', 'aria-label': 'Zoom in', onclick: () => map?.zoomBy(1) }, '+'),
       el('button', { class: 'memory-control', 'aria-label': 'Zoom out', onclick: () => map?.zoomBy(-1) }, '−'));
     shell.append(mapHost, top, controls, sheetPanel); root.append(shell);
     map = new TileMap(mapHost, { lat: app.cfg.mapCenterLat, lon: app.cfg.mapCenterLon, zoom: Math.max(app.cfg.mapZoom, 13), tileUrl: app.cfg.tileUrl,
       onMarkerClick: (m) => openMemory(m.items), label: 'Your JOTA-JOTI captures mapped to where they were taken.' });
+    startWatch();
+    offFix = onFix((f) => { if (map) map.setUser(f); });
+    if (lastFix()) map.setUser(lastFix());
     return { mapHost, rail: shell.querySelector('#memory-rail'), stats: shell.querySelector('#memory-stats-text'), count: shell.querySelector('#memory-count'), noLocation: shell.querySelector('#memory-no-location'), noLocationList: shell.querySelector('#memory-no-location-list') };
   }
 
@@ -211,5 +238,8 @@ export function mountPosts(root, app) {
   const soon = () => { clearTimeout(t); t = setTimeout(render, 180); };
   subEvents.addEventListener('change', soon); upEvents.addEventListener('progress', onProgress);
 
-  return {\n    async show() { active = true; ui = null; map = null; hasFitted = false; userFitted = false; await loadRemote(); await render(); },\n    hide() { active = false; activeSheet?.close(); activeSheet = null; revoke(); offFix && offFix(); offFix = null; stopWatch(); if (map) { map.destroy(); map = null; } root.replaceChildren(); ui = null; },\n  };
+  return {
+    async show() { active = true; ui = null; map = null; hasFitted = false; userFitted = false; await loadHidden(); await loadRemote(); await render(); },
+    hide() { active = false; activeSheet?.close(); activeSheet = null; revoke(); offFix && offFix(); offFix = null; stopWatch(); if (map) { map.destroy(); map = null; } root.replaceChildren(); ui = null; },
+  };
 }

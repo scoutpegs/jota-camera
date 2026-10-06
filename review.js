@@ -131,6 +131,7 @@ export function mountSubmit(root, app) {
           el('div', { class: 'kv' }, ...row('Location', locText(sub)))),
         el('label', { class: 'field' }, el('span', {}, 'Caption'), caption),
         go, el('p', { style: { height: '8px' } }),
+        el('button', { class: 'btn ghost block', onclick: async () => { if (!confirm('Delete this draft from this phone?')) return; await (await import('./submissions.js')).discard(sub.id); toast('Draft deleted.', 'ok'); app.go('camera', {}, { replace: true }); } }, 'Delete draft'),
         el('button', { class: 'btn ghost block', onclick: () => history.back() }, 'Back')));
       root.scrollTop = 0;
     },

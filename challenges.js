@@ -15,7 +15,7 @@ const mediaLabel = (m) => (m === 'photo' ? 'Photo' : m === 'video' ? 'Video' : '
 
 export async function doneIds() {
   const subs = await listSubs();
-  return new Set(subs.filter((s) => s.status !== 'DRAFT' && s.challengeId).map((s) => s.challengeId));
+  return new Set(subs.filter((s) => ['QUEUED','UPLOADING','UPLOADED'].includes(s.status) && s.challengeId).map((s) => s.challengeId));
 }
 
 export function mountChallenges(root, app) {
