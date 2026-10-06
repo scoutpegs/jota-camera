@@ -1,5 +1,5 @@
 // App shell: starts everything, owns the tabs, the top bar, the bottom nav and back-button behaviour.
-import { $, el, icon, toast, choose, sheet } from './util.js';
+import { $, el, icon, toast, choose } from './util.js';
 import { openDb, requestPersistence, storageProblem } from './db.js';
 import { loadIdentity, identity } from './identity.js';
 import { cfg, loadConfig } from './config.js';
@@ -104,6 +104,8 @@ async function setView(name, params = {}) {
     if (b.dataset.view === navName) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
   const full = name === 'review';
+  document.body.dataset.view = name;
+  document.body.classList.toggle('standalone', !!(window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true);
   document.title = 'JOTA-JOTI Camera' + (full ? '' : ' · ' + ({ camera: 'Camera', map: 'Map', challenges: 'Challenges', posts: 'My posts', settings: 'Settings', submit: 'Submit' }[name] || ''));
 }
 
@@ -134,19 +136,10 @@ function refreshWho() {
 
 function buildNav() {
   const nav = $('#nav');
-  nav.replaceChildren(...NAV.map(([name, label, ic]) => el('button', { 'data-view': name, id: 'nav-' + name, onclick: () => go(name) }, icon(ic), el('span', {}, label))),
-    el('button', { id: 'nav-a', 'aria-label': 'A', onclick: openA }, el('span', { class: 'letterA' }, 'A'), el('span', {}, 'A')));
+  nav.replaceChildren(...NAV.map(([name, label, ic]) => el('button', { 'data-view': name, id: 'nav-' + name, onclick: () => go(name) }, icon(ic), el('span', {}, label))));
   const posts = nav.querySelector('#nav-posts');
   posts.append(el('span', { class: 'badge', id: 'posts-badge', hidden: true }));
   nav.hidden = false; $('#topbar').hidden = false;
-  const a = $('#nav-a span:last-child');
-  const sync = () => { a.textContent = cfg.aButtonLabel || 'A'; };
-  window.addEventListener('jota-config', sync); sync();
-}
-
-function openA() {
-  if (cfg.aButtonUrl) { window.open(cfg.aButtonUrl, '_blank', 'noopener'); return; }
-  sheet(el('div', {}, el('h1', {}, 'A'), el('p', { class: 'muted' }, 'This button has not been connected yet. The organiser can set where it goes in Admin → Settings.'), el('button', { class: 'btn block', onclick: (e) => e.target.closest('.scrim').remove() }, 'OK')), { label: 'A' });
 }
 
 async function updateStatus() {

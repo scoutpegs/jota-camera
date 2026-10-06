@@ -4,6 +4,7 @@ import { el, $, cleanName } from './util.js';
 import { cfg } from './config.js';
 import { createIdentity, renameIdentity, identity } from './identity.js';
 import { ensureRegistered } from './api.js';
+import { requestMediaPermissions } from './camera.js';
 import { needsInstallStep, installPanel, dismissInstall, isIOS } from './install.js';
 
 export function mountOnboarding(root, done) {
@@ -35,6 +36,9 @@ export function mountOnboarding(root, done) {
         btn.disabled = true;
         if (identity()) await renameIdentity(name); else await createIdentity(name);
         ensureRegistered().catch(() => {}); // fine if offline: the uploader registers later
+        // Request camera + microphone immediately after the name. A microphone denial is non-fatal;
+        // the camera should still open and the user can continue without recorded microphone audio.
+        try { await requestMediaPermissions(); } catch { /* camera screen will explain any block */ }
         next();
       };
       btn.addEventListener('click', go);

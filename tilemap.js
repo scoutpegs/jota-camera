@@ -21,7 +21,7 @@ export class TileMap {
     this.lat = opts.lat ?? 0; this.lon = opts.lon ?? 0; this.zoom = opts.zoom ?? 3;
     this.minZoom = opts.minZoom ?? 2; this.maxZoom = opts.maxZoom ?? 19;
     this.onMarkerClick = opts.onMarkerClick; this.onMapClick = opts.onMapClick; this.onMarkerDrag = opts.onMarkerDrag;
-    this.markers = []; this.user = null; this.tiles = new Map(); this.pointers = new Map();
+    this.markers = []; this.user = null; this.tiles = new Map(); this.pointers = new Map(); this.markerImages = new Map();
     this.canvas = document.createElement('canvas');
     this.canvas.tabIndex = 0;
     this.canvas.setAttribute('role', 'application');
@@ -37,7 +37,7 @@ export class TileMap {
     this.resize();
   }
 
-  destroy() { this.ro.disconnect(); window.removeEventListener('online', this.onlineHandler); this.canvas.remove(); }
+  destroy() { this.ro.disconnect(); window.removeEventListener('online', this.onlineHandler); this.markerImages.forEach((img) => { try { img.src = ''; } catch {} }); this.markerImages.clear(); this.canvas.remove(); }
   resize() {
     const r = this.container.getBoundingClientRect();
     this.dpr = window.devicePixelRatio || 1;
@@ -152,16 +152,80 @@ export class TileMap {
     this.invalidate();
   }
   hit(px, py) {
-    let best = null, bd = 22;
+    let best = null, bd = Infinity;
     for (const m of this.markers) {
       const s = this.latLonToScreen(m.lat, m.lon);
-      const d = Math.hypot(s.x - px, s.y - py);
+      let d = Infinity;
+      if (m.kind === 'memory') {
+        const hw = 30, hh = 38;
+        if (px >= s.x - hw && px <= s.x + hw && py >= s.y - hh && py <= s.y + hh) { d = 0; }
+      } else {
+        d = Math.hypot(s.x - px, s.y - py);
+        if (d > (m.hitRadius || 24)) d = Infinity;
+      }
       if (d < bd) { bd = d; best = m; }
     }
     return best;
   }
 
   /* ---------- drawing ---------- */
+  markerImage(url) {
+    if (!url) return null;
+    let img = this.markerImages.get(url);
+    if (img) return img;
+    img = new Image();
+    if (!url.startsWith('blob:')) img.crossOrigin = 'anonymous';
+    img.onload = () => this.invalidate();
+    img.onerror = () => { this.markerImages.delete(url); };
+    img.src = url;
+    this.markerImages.set(url, img);
+    if (this.markerImages.size > 160) this.markerImages.delete(this.markerImages.keys().next().value);
+    return img;
+  }
+  roundedRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y); ctx.arcTo(x + w, y, x + w, y + h, rr); ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr); ctx.arcTo(x, y, x + w, y, rr); ctx.closePath();
+  }
+  drawMemoryMarker(m, s) {
+    const ctx = this.ctx;
+    const w = 48, h = 62, x = s.x - w / 2, y = s.y - h / 2;
+    const img = this.markerImage(m.imageUrl);
+    ctx.save();
+    this.roundedRectPath(ctx, x + 1, y + 1, w - 2, h - 2, 11);
+    ctx.fillStyle = '#171219'; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#9b62d3'; ctx.stroke();
+    ctx.save(); this.roundedRectPath(ctx, x + 4, y + 4, w - 8, h - 16, 8); ctx.clip();
+    if (img && img.complete && img.naturalWidth) ctx.drawImage(img, x + 4, y + 4, w - 8, h - 16);
+    else { ctx.fillStyle = '#2b2232'; ctx.fillRect(x + 4, y + 4, w - 8, h - 16); ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '700 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText(m.mediaType === 'video' ? '▶' : '•', s.x, y + 30); }
+    ctx.restore();
+    ctx.fillStyle = '#fff'; ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(m.mediaType === 'video' ? 'VIDEO' : 'PHOTO', s.x, y + h - 5);
+    if (m.count > 1) {
+      const bx = x + w - 2, by = y + 1;
+      ctx.fillStyle = '#9b62d3'; ctx.beginPath(); ctx.arc(bx, by, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = '700 11px system-ui'; ctx.fillText(String(m.count), bx, by + 4);
+    }
+    ctx.restore();
+  }
+  drawChallengeMarker(m, s) {
+    const ctx = this.ctx;
+    ctx.save();
+    const r = m.selected ? 17 : 14;
+    ctx.fillStyle = m.done ? '#2f9e66' : '#f4b400'; ctx.strokeStyle = '#151515'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    if (m.done) {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(s.x - 5, s.y); ctx.lineTo(s.x - 1, s.y + 4); ctx.lineTo(s.x + 6, s.y - 5); ctx.stroke();
+    } else {
+      ctx.fillStyle = '#171717'; ctx.font = '800 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(m.label || '!', s.x, s.y + 4);
+    }
+    if (m.count > 1) {
+      ctx.fillStyle = '#5a2c84'; ctx.beginPath(); ctx.arc(s.x + 12, s.y - 12, 8.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = '800 9px system-ui'; ctx.fillText(String(m.count), s.x + 12, s.y - 9);
+    }
+    ctx.restore();
+  }
   tile(z, x, y) {
     const key = `${z}/${x}/${y}`;
     let t = this.tiles.get(key);
@@ -201,13 +265,17 @@ export class TileMap {
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, 9, 0, 7); ctx.fill();
       ctx.fillStyle = '#3b82f6'; ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, 7); ctx.fill();
     }
+    // Subtle darkening keeps the map readable while giving the app its own map treatment.
+    ctx.fillStyle = 'rgba(10, 18, 32, .22)'; ctx.fillRect(0, 0, w, h);
     for (const m of this.markers) {
       const s = this.latLonToScreen(m.lat, m.lon);
-      if (s.x < -30 || s.y < -30 || s.x > w + 30 || s.y > h + 30) continue;
+      if (s.x < -60 || s.y < -70 || s.x > w + 60 || s.y > h + 70) continue;
+      if (m.kind === 'memory') { this.drawMemoryMarker(m, s); continue; }
+      if (m.kind === 'challenge') { this.drawChallengeMarker(m, s); continue; }
       const r = m.selected ? 12 : 9;
-      if (m.selected) { ctx.fillStyle = 'rgba(255,179,0,.35)'; ctx.beginPath(); ctx.arc(s.x, s.y, 19, 0, 7); ctx.fill(); }
+      if (m.selected) { ctx.fillStyle = 'rgba(255,179,0,.30)'; ctx.beginPath(); ctx.arc(s.x, s.y, 19, 0, Math.PI * 2); ctx.fill(); }
       ctx.fillStyle = m.color || '#5a2c84'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       if (m.done) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(s.x - 4, s.y); ctx.lineTo(s.x - 1, s.y + 3); ctx.lineTo(s.x + 4, s.y - 3); ctx.stroke(); }
       if (m.label && this.zoom >= 15) {
         ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3;

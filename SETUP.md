@@ -197,3 +197,12 @@ The **Map pins** page in Admin no longer edits Supabase locations directly. It s
 
 ## GitHub root upload
 This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. Runtime files are intentionally at the repository root. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
+
+## UI and permission behavior
+After a participant enters their name, the app immediately requests camera and microphone access. Camera access is required for the camera screen; microphone access is treated as optional so the participant can still continue if microphone permission is denied.
+
+When installed as a PWA, the camera header and bottom navigation use the device safe-area insets so controls are not placed under a notch, status area, or home indicator.
+
+The participant navigation contains Camera, Map, Challenges and My posts. The old A/admin button is not shown in the participant app.
+
+When the phone exposes hardware zoom controls, the camera shows quick 1x and 2x buttons and also supports pinch/slider zoom.

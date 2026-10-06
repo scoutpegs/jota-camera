@@ -47,3 +47,41 @@ The participant Map tab reads the current `Map Settings` and `Locations` data th
 
 ## GitHub root upload
 This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. Runtime files are intentionally at the repository root. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
+
+## Final UI polish pass
+
+Completed:
+- Removed the participant-facing A/admin button from the bottom navigation.
+- Added installed-PWA safe-area spacing so top and bottom controls clear the phone's system UI.
+- Added quick 1x / 2x zoom controls when hardware zoom is supported, while retaining pinch/slider zoom.
+- Added immediate camera + microphone permission preflight after the participant enters their name.
+- Kept microphone denial non-fatal so the camera can still open.
+- Reduced non-essential blur and visual effects on the camera.
+- Added camera-specific dark app chrome for a more native camera-app feel.
+- Removed the external Google Fonts request from the HTML startup path for faster and more reliable loading.
+- Bumped the service-worker shell version to v7-camera-polish.
+
+Automated checks after the polish pass:
+- 29 JavaScript files passed `node --check`.
+- All local index.html assets resolved.
+- A/admin nav code removed from main navigation.
+- Quick 2x zoom code present.
+- Permission preflight wired into onboarding and camera modules.
+- Standalone safe-area CSS present.
+- Camera-specific chrome CSS present.
+- Reduced-motion support present.
+- External font request removed from HTML.
+- Current Google Apps Script URL present.
+- Service worker cache version bumped.
+
+
+### Map/memories pass
+- My posts converted to a map-first memories view
+- Geotagged local and remote submissions carry latitude/longitude into the map
+- Remote own-submission API includes signed media and thumbnail URLs
+- Challenge markers resolve from both Supabase `location_id` and Sheet `ChallengeNumbers`
+- Challenge markers open capture actions directly
+- Map panning, wheel zoom, pinch zoom, marker hit testing and safe-area layout retained
+- Automated syntax/import/path checks rerun after the memory-map changes
+
+Live phone camera/GPS testing still needs to be performed on the published HTTPS site because this build environment cannot grant camera/GPS permissions.

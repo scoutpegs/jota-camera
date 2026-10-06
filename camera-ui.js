@@ -26,6 +26,9 @@ export function mountCamera(root, app) {
   const zoomBtn = el('button', { class: 'tool', id: 'zoom-btn', 'aria-label': 'Zoom', hidden: true, onclick: () => { zoomBar.hidden = !zoomBar.hidden; } }, icon('zoom'));
   const zoomRange = el('input', { type: 'range', 'aria-label': 'Zoom level', oninput: (e) => cam.setZoom(Number(e.target.value)) });
   const zoomBar = el('div', { class: 'zoom-bar', hidden: true }, zoomRange);
+  const zoom1 = el('button', { class: 'zoom-preset active', type: 'button', onclick: () => setPresetZoom(1) }, '1×');
+  const zoom2 = el('button', { class: 'zoom-preset', type: 'button', onclick: () => setPresetZoom(2) }, '2×');
+  const zoomPresets = el('div', { class: 'zoom-presets', hidden: true, role: 'group', 'aria-label': 'Quick zoom' }, zoom1, zoom2);
   const readout = el('div', { class: 'readout', id: 'readout', 'aria-live': 'off' }, el('i', { class: 'rd' }), el('span', { id: 'rec-time' }, '00:00'));
   const flashEl = el('div', { class: 'flash' });
 
@@ -46,6 +49,7 @@ export function mountCamera(root, app) {
   const stage = el('div', { class: 'cam-stage' }, video, el('div', { class: 'vf' }, el('i'), el('i'), el('i'), el('i')), flashEl, readout,
     el('div', { class: 'cam-top' }, el('div', { class: 'row' }, chip, chipX), el('div', { class: 'tools' }, torchBtn, zoomBtn)),
     zoomBar,
+    zoomPresets,
     el('div', { class: 'cam-bottom' }, el('div', { class: 'shutter-row' }, soundBtn, shutter, flipBtn), modes),
     gate);
   root.append(stage);
@@ -77,9 +81,21 @@ export function mountCamera(root, app) {
   function applyCaps() {
     torchBtn.hidden = !cam.caps.torch; torchBtn.setAttribute('aria-pressed', 'false');
     zoomBtn.hidden = !cam.caps.zoom;
+    zoomPresets.hidden = !cam.caps.zoom;
     if (cam.caps.zoom) { const z = cam.caps.zoom; Object.assign(zoomRange, { min: z.min, max: z.max, step: z.step, value: z.value }); }
     zoomBar.hidden = true;
     refresh();
+  }
+
+  function setPresetZoom(multiplier) {
+    const z = cam.caps.zoom;
+    if (!z) return;
+    const base = Math.max(1, Number(z.min) || 1);
+    const target = Math.min(z.max, Math.max(z.min, base * multiplier));
+    zoomRange.value = target;
+    cam.setZoom(target);
+    zoom1.classList.toggle('active', multiplier === 1);
+    zoom2.classList.toggle('active', multiplier === 2);
   }
 
   /* ---------- the permission gate ---------- */

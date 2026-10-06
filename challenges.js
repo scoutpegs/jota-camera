@@ -42,9 +42,10 @@ export function mountChallenges(root, app) {
         el('div', { class: 'row wrap', style: { margin: '8px 0' } }, el('span', { class: 'pill' }, mediaLabel(c.requiredMedia)),
           c.location ? el('span', { class: 'pill' }, el('span', {}, c.location.name)) : null),
         dist ? el('p', { class: 'small', style: { margin: '0 0 8px' } }, dist) : null,
-        el('div', { class: 'row' },
+        el('div', { class: 'row wrap' },
           c.requiredMedia !== 'video' && app.cfg.photosEnabled ? el('button', { class: 'btn grow', onclick: () => app.startChallenge(c, 'photo') }, 'Take photo') : null,
-          c.requiredMedia !== 'photo' && app.cfg.videosEnabled ? el('button', { class: 'btn ghost grow', onclick: () => app.startChallenge(c, 'video') }, 'Record video') : null));
+          c.requiredMedia !== 'photo' && app.cfg.videosEnabled ? el('button', { class: 'btn ghost grow', onclick: () => app.startChallenge(c, 'video') }, 'Record video') : null,
+          c.location ? el('button', { class: 'btn small ghost', onclick: () => { app.ctx.mapFocus = { lat: c.location.latitude, lon: c.location.longitude }; app.go('map'); } }, 'View on map') : null));
       list.append(card);
     }
   }

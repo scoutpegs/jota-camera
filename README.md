@@ -61,3 +61,7 @@ Leave `ID` blank for a new row. The Apps Script will assign a UUID. `Active=fals
 
 ## GitHub root upload
 This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. Runtime files are intentionally at the repository root. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
+
+
+## Map memories and challenges
+The My posts screen is map-first. Geotagged captures are shown as thumbnail markers at their capture coordinates, while captures without location remain in the lower archive. Challenge markers are placed from challenge location IDs or the Google Sheet Locations `ChallengeNumbers` column. Tapping a challenge marker opens the challenge actions directly; tapping a memory opens its details and recent media.

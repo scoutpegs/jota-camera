@@ -148,12 +148,19 @@ export async function handle(path, { method = 'GET', body } = {}) {
 
   if (p === '/api/my/submissions') {
     const pid = identity() && identity().id;
-    const rows = await rest(`submissions?select=id,media_type,captured_at,uploaded_at,upload_status,review_status,backup_status,storage_provider,backup_url,caption,challenge_id,thumb_key,challenges(name)&participant_id=eq.${pid}&order=captured_at.desc&limit=300`, { auth: true });
-    let urls = {}; try { urls = await sign('media', rows.map((r) => r.thumb_key)); } catch { /* thumbnails are optional */ }
+    const rows = await rest(`submissions?select=id,media_type,mime,captured_at,uploaded_at,upload_status,review_status,backup_status,storage_provider,backup_url,caption,challenge_id,thumb_key,media_key,duration,latitude,longitude,location_accuracy,sound_label,challenges(name)&participant_id=eq.${pid}&order=captured_at.desc&limit=300`, { auth: true });
+    let urls = {};
+    try {
+      const paths = rows.flatMap((r) => [r.thumb_key, r.media_key]).filter(Boolean);
+      urls = await sign('media', paths);
+    } catch { /* signed media is optional; metadata still works */ }
     return { submissions: rows.map((r) => ({
-      id: r.id, mediaType: r.media_type, capturedAt: r.captured_at, uploadedAt: r.uploaded_at, uploadStatus: r.upload_status, reviewStatus: r.review_status,
+      id: r.id, mediaType: r.media_type, mime: r.mime, duration: r.duration || 0, capturedAt: r.captured_at, uploadedAt: r.uploaded_at, uploadStatus: r.upload_status, reviewStatus: r.review_status,
       backupStatus: r.backup_status, storageProvider: r.storage_provider, backupUrl: r.backup_url,
-      caption: r.caption, challengeId: r.challenge_id, challengeName: r.challenges && r.challenges.name, thumbUrl: urls[r.thumb_key] || null })) };
+      caption: r.caption, challengeId: r.challenge_id, challengeName: r.challenges && r.challenges.name, soundLabel: r.sound_label || '',
+      latitude: r.latitude, longitude: r.longitude, accuracy: r.location_accuracy,
+      thumbUrl: urls[r.thumb_key] || null, mediaUrl: urls[r.media_key] || null
+    })) };
   }
 
   if (p === '/api/submissions' && method === 'POST') {

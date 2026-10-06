@@ -25,6 +25,47 @@ function explain(e) {
   return new CameraError('other', 'The camera could not start.');
 }
 
+
+export async function requestMediaPermissions() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new CameraError('unsupported', 'This browser cannot use the camera.');
+  }
+
+  let combinedStream = null;
+  try {
+    combinedStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    try { localStorage.setItem('jota.camOK', '1'); localStorage.setItem('jota.micOK', '1'); } catch { /* ignore */ }
+    combinedStream.getTracks().forEach((t) => t.stop());
+    return { camera: true, microphone: true };
+  } catch (combinedError) {
+    combinedStream?.getTracks().forEach((t) => t.stop());
+  }
+
+  let camera = false;
+  let microphone = false;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    camera = true;
+    try { localStorage.setItem('jota.camOK', '1'); } catch { /* ignore */ }
+    stream.getTracks().forEach((t) => t.stop());
+  } catch (e) {
+    const kind = explain(e);
+    throw kind;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    microphone = true;
+    try { localStorage.setItem('jota.micOK', '1'); } catch { /* ignore */ }
+    stream.getTracks().forEach((t) => t.stop());
+  } catch {
+    // Microphone is optional for opening the camera. Recording will explain the limitation later.
+  }
+  return { camera, microphone };
+}
 export class Camera {
   constructor(video) {
     this.video = video; this.stream = null; this.facing = 'environment';
