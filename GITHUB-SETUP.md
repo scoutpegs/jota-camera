@@ -80,3 +80,7 @@ In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to atta
 
 ## Upload layout
 Upload the contents of this package directly into the GitHub repository root. The runtime does not depend on css/js/icons subfolders.
+
+
+## Flat repository layout
+Upload every file from this package directly to the repository root. There are no required runtime folders. The included `404.html` redirects `/admin` and `/admin/` to `admin.html` automatically on GitHub Pages.

@@ -1,5 +1,5 @@
 // The Camera tab: live preview, shutter, photo/video modes, sound, challenge chip.
-import { el, icon, toast, haptic, fmtClock, sleep } from './util.js';
+import { el, icon, toast, haptic, fmtClock } from './util.js';
 import { cfg } from './config.js';
 import { Camera, CameraError, clearActiveRec } from './camera.js';
 import { getFix, startWatch, stopWatch, permissionState, supported as gpsSupported, isDenied } from './location.js';
@@ -21,6 +21,11 @@ export function mountCamera(root, app) {
   const chipText = el('span', {}, 'No challenge');
   const chipX = el('button', { class: 'chip x', 'aria-label': 'Clear challenge', onclick: (e) => { e.stopPropagation(); app.ctx.challenge = null; refresh(); } }, icon('close'));
   const chip = el('button', { class: 'chip', id: 'challenge-chip', 'aria-label': 'Choose a challenge', onclick: chooseChallenge }, icon('flag'), chipText);
+  const brandMark = el('div', { class: 'camera-brand' },
+    el('img', { src: 'logo.png', alt: '' }),
+    el('div', { class: 'camera-brand-copy' }, el('b', {}, 'JOTA-JOTI'), el('span', { id: 'camera-who' }, ''))
+  );
+  const galleryBtn = el('button', { class: 'tool camera-gallery', 'aria-label': 'Open My posts', onclick: () => app.go('posts') }, icon('posts'));
   const torchBtn = el('button', { class: 'tool', id: 'torch', 'aria-label': 'Flashlight', 'aria-pressed': 'false', hidden: true, onclick: async () => {
     const ok = await cam.setTorch(!cam.torchOn); torchBtn.setAttribute('aria-pressed', String(cam.torchOn && ok)); } }, icon('torch'));
   const zoomBtn = el('button', { class: 'tool', id: 'zoom-btn', 'aria-label': 'Zoom', hidden: true, onclick: () => { zoomBar.hidden = !zoomBar.hidden; } }, icon('zoom'));
@@ -45,21 +50,32 @@ export function mountCamera(root, app) {
   const modeVideo = el('button', { id: 'mode-video', 'aria-pressed': 'false', onclick: () => setMode('video') }, 'VIDEO');
   const modes = el('div', { class: 'modes', role: 'group', 'aria-label': 'Camera mode' }, modePhoto, modeVideo);
   const gate = el('div', { class: 'cam-gate', id: 'cam-gate' });
+  // Native capture fallback for browsers where getUserMedia/MediaRecorder is unavailable.
+  // On supported phones this can also hand off to the OS camera picker, which is more
+  // reliable than blocking the participant from capturing anything.
+  const nativeCapture = el('input', { type: 'file', accept: 'image/*,video/*', capture: 'environment', hidden: true, 'aria-label': 'Use device camera' });
 
   const stage = el('div', { class: 'cam-stage' }, video, el('div', { class: 'vf' }, el('i'), el('i'), el('i'), el('i')), flashEl, readout,
-    el('div', { class: 'cam-top' }, el('div', { class: 'row' }, chip, chipX), el('div', { class: 'tools' }, torchBtn, zoomBtn)),
+    el('div', { class: 'cam-top' },
+      el('div', { class: 'camera-topline' }, brandMark, el('div', { class: 'camera-top-actions' }, galleryBtn, torchBtn, zoomBtn)),
+      el('div', { class: 'camera-challenge-row' }, el('div', { class: 'row' }, chip, chipX))
+    ),
     zoomBar,
     zoomPresets,
-    el('div', { class: 'cam-bottom' }, el('div', { class: 'shutter-row' }, soundBtn, shutter, flipBtn), modes),
+    el('div', { class: 'cam-bottom' }, el('div', { class: 'camera-mode-row' }, modes), el('div', { class: 'shutter-row' }, soundBtn, shutter, flipBtn)),
     gate);
-  root.append(stage);
+  root.append(stage, nativeCapture);
 
   /* ---------- state -> screen ---------- */
   function refresh() {
     const c = app.ctx.challenge;
     chipText.textContent = c ? c.name : 'No challenge';
+    const meLabel = document.getElementById('camera-who');
+    const me = (() => { try { return JSON.parse(localStorage.getItem('jota.identity') || 'null'); } catch { return null; } })();
+    if (meLabel) meLabel.textContent = me && me.name ? `Recording as ${me.name}` : 'Camera';
     chipX.hidden = !c;
     const s = app.ctx.sound;
+    document.body.classList.toggle('camera-recording', !!session);
     soundLabel.textContent = s ? s.title : 'Sound';
     const canPhoto = cfg.photosEnabled, canVideo = cfg.videosEnabled;
     modes.hidden = !(canPhoto && canVideo);
@@ -82,6 +98,7 @@ export function mountCamera(root, app) {
     torchBtn.hidden = !cam.caps.torch; torchBtn.setAttribute('aria-pressed', 'false');
     zoomBtn.hidden = !cam.caps.zoom;
     zoomPresets.hidden = !cam.caps.zoom;
+    zoom2.hidden = !cam.caps.zoom || Number(cam.caps.zoom.max) < 2;
     if (cam.caps.zoom) { const z = cam.caps.zoom; Object.assign(zoomRange, { min: z.min, max: z.max, step: z.step, value: z.value }); }
     zoomBar.hidden = true;
     refresh();
@@ -99,21 +116,73 @@ export function mountCamera(root, app) {
   }
 
   /* ---------- the permission gate ---------- */
+  async function fallbackCapture(file) {
+    if (!file) return;
+    const max = cfg.maxMediaBytes || 30 * 1024 * 1024;
+    if (file.size > max) { toast('That file is too large to save safely. Choose a shorter or smaller capture.', 'bad', 5500); return; }
+    const mediaType = file.type.startsWith('video/') ? 'video' : file.type.startsWith('image/') ? 'photo' : '';
+    if (!mediaType) { toast('Please choose a photo or video from the camera picker.', 'bad'); return; }
+    busy = true;
+    try {
+      gate.hidden = true;
+      let thumb = null;
+      if (mediaType === 'photo') {
+        thumb = file;
+      } else {
+        const src = URL.createObjectURL(file);
+        try {
+          const v = document.createElement('video');
+          v.src = src; v.muted = true; v.playsInline = true; v.preload = 'metadata';
+          await new Promise((resolve, reject) => {
+            v.onloadedmetadata = () => { v.currentTime = Math.min(.25, Math.max(0, (v.duration || 1) / 10)); };
+            v.onseeked = () => resolve();
+            v.onerror = () => reject(new Error('Could not preview the video.'));
+            setTimeout(() => resolve(), 3500);
+          });
+          if (v.videoWidth && v.videoHeight) {
+            const maxSide = 480, scale = Math.min(1, maxSide / Math.max(v.videoWidth, v.videoHeight));
+            const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(v.videoWidth * scale)); c.height = Math.max(1, Math.round(v.videoHeight * scale));
+            c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+            thumb = await new Promise((resolve) => c.toBlob(resolve, 'image/jpeg', .72));
+          }
+        } catch { /* video remains valid without a thumbnail */ }
+        URL.revokeObjectURL(src);
+      }
+      const fix = await getFix().catch(() => null);
+      const challenge = app.ctx.challenge;
+      // The native OS camera picker cannot reliably mix an in-app sound track.
+      // Do not claim a sound was attached when the fallback path cannot actually mix it.
+      if (mediaType === 'video' && app.ctx.sound) toast('The device camera saved the video with its original audio. The in-app sound was not mixed on this fallback capture.', '', 5000);
+      const sub = await createDraft({ blob: file, thumb, mediaType, mime: file.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg'), fix, challenge, sound: null });
+      toast('Saved. You can review it now and it will upload automatically.', 'ok');
+      app.openReview(sub.id);
+    } catch (e) {
+      await app.saveError(e);
+      gate.hidden = false;
+    } finally {
+      busy = false;
+      nativeCapture.value = '';
+    }
+  }
+
+  nativeCapture.onchange = () => fallbackCapture(nativeCapture.files && nativeCapture.files[0]);
+
   function showGate(kind) {
     gate.hidden = false;
     const retry = el('button', { class: 'btn block', id: 'cam-retry', onclick: startCam }, kind === 'ask' ? 'Allow camera' : 'Try again');
-    const how = isIOS ? 'Open Settings on your iPhone, find Safari (or JOTA-JOTI if it is on your home screen), and set Camera to Allow for this site.'
-      : isAndroid ? 'Tap the lock icon next to the web address, tap Permissions, and set Camera to Allow. Then come back and try again.'
-      : 'Click the camera icon in the address bar, choose Allow, then try again.';
+    const useDevice = el('button', { class: 'btn block ghost', id: 'cam-native', onclick: () => nativeCapture.click() }, 'Use device camera');
+    const how = isIOS ? 'Open Settings on your iPhone or iPad, find Safari (or JOTA-JOTI if installed), and allow Camera for this site.'
+      : isAndroid ? 'Tap the site controls beside the web address, open Permissions, allow Camera, then try again.'
+      : 'Use the camera permission control in the address bar, choose Allow, then try again.';
     const content = {
-      ask: [el('h1', {}, 'Camera'), el('p', { class: 'muted' }, 'JOTA-JOTI uses your camera so you can take competition photos and videos.'), retry],
+      ask: [el('h1', {}, 'Camera'), el('p', { class: 'muted' }, 'JOTA-JOTI uses your camera so you can take competition photos and videos.'), retry, useDevice],
       loading: [el('p', { class: 'muted' }, 'Starting the camera…')],
-      denied: [el('h1', {}, 'Camera is blocked'), el('p', {}, 'JOTA-JOTI can’t use your camera yet. ' + how), retry],
-      none: [el('h1', {}, 'No camera found'), el('p', { class: 'muted' }, 'This device doesn’t seem to have a camera we can use.'), retry],
-      busy: [el('h1', {}, 'Camera is busy'), el('p', { class: 'muted' }, 'Another app is using the camera. Close it and try again.'), retry],
-      unsupported: [el('h1', {}, 'Camera not available'), el('p', { class: 'muted' }, 'This browser can’t use the camera. Try Safari on iPhone or Chrome on Android.')],
-      other: [el('h1', {}, 'The camera didn’t start'), el('p', { class: 'muted' }, 'Something went wrong starting the camera.'), retry],
-    }[kind] || [];
+      denied: [el('h1', {}, 'Camera is blocked'), el('p', {}, 'JOTA-JOTI can’t use the live camera yet. ' + how), retry, useDevice],
+      none: [el('h1', {}, 'No camera found'), el('p', { class: 'muted' }, 'This device doesn’t seem to have a camera we can use.'), useDevice],
+      busy: [el('h1', {}, 'Camera is busy'), el('p', { class: 'muted' }, 'Another app is using the camera. Close it and try again.'), retry, useDevice],
+      unsupported: [el('h1', {}, 'Camera not available'), el('p', { class: 'muted' }, 'This browser cannot open the live camera. You can still use the device camera picker for a photo or video.'), useDevice],
+      other: [el('h1', {}, 'The camera didn’t start'), el('p', { class: 'muted' }, 'Something went wrong starting the live camera. You can still capture with the device camera.'), retry, useDevice],
+    }[kind] || [el('h1', {}, 'Camera'), useDevice];
     gate.replaceChildren(...content, kind === 'loading' ? null : el('p', { class: 'small muted', style: { marginTop: '16px' } }, 'You can still look at Challenges and the Map, and your saved posts keep uploading.'));
   }
 
@@ -212,12 +281,12 @@ export function mountCamera(root, app) {
       toast(e instanceof CameraError ? e.message : 'Recording could not start on this phone.', 'bad');
       return;
     }
-    shutter.classList.add('recording'); readout.classList.add('on'); haptic(20); refresh();
+    shutter.classList.add('recording'); readout.classList.add('on'); document.body.classList.add('camera-recording'); haptic(20); refresh();
     busy = false;
     const s = session;
     const res = await s.done;
     session = null;
-    shutter.classList.remove('recording'); readout.classList.remove('on'); ring.style.strokeDashoffset = '270'; refresh();
+    shutter.classList.remove('recording'); readout.classList.remove('on'); document.body.classList.remove('camera-recording'); ring.style.strokeDashoffset = '270'; refresh();
     try {
       if (!res.blob.size) { await clearActiveRec(s.recId); toast('Nothing was recorded. Please try again.', 'bad'); return; }
       if (res.blob.size > (cfg.maxMediaBytes || 30 * 1024 * 1024)) {
@@ -237,11 +306,11 @@ export function mountCamera(root, app) {
   }
 
   /* ---------- gestures: swipe to change mode, pinch to zoom ---------- */
-  const ptrs = new Map(); let swipe = null, pinch0 = null;
+  const ptrs = new Map(); let swipe = null, pinch0 = null, lastTap = 0;
   stage.addEventListener('pointerdown', (e) => {
     if (e.target.closest('button,input,.zoom-bar')) return;
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (ptrs.size === 1) swipe = { x: e.clientX, y: e.clientY };
+    if (ptrs.size === 1) swipe = { x: e.clientX, y: e.clientY, t: performance.now() };
     else if (ptrs.size === 2 && cam.caps.zoom) { swipe = null; const [a, b] = [...ptrs.values()]; pinch0 = { d: Math.hypot(a.x - b.x, a.y - b.y), z: cam.caps.zoom.value }; }
   });
   stage.addEventListener('pointermove', (e) => {
@@ -256,7 +325,15 @@ export function mountCamera(root, app) {
   const endPtr = (e) => {
     if (swipe && ptrs.size === 1 && ptrs.has(e.pointerId)) {
       const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
-      if (Math.abs(dx) > 70 && Math.abs(dy) < 60) { if (dx < 0) setMode('video'); else setMode('photo'); }
+      if (Math.abs(dx) > 70 && Math.abs(dy) < 60) {
+        if (dx < 0) setMode('video'); else setMode('photo');
+      } else if (Math.abs(dx) < 12 && Math.abs(dy) < 12 && performance.now() - (swipe.t || 0) < 350 && !session && cam.caps.flip) {
+        const now = performance.now();
+        if (now - lastTap < 420) {
+          lastTap = 0;
+          flipBtn.click();
+        } else lastTap = now;
+      }
     }
     ptrs.delete(e.pointerId); swipe = null; if (ptrs.size < 2) pinch0 = null;
   };
@@ -278,7 +355,7 @@ export function mountCamera(root, app) {
     },
     hide() {
       visible = false;
-      if (session) { leftWhileRecording = true; session.stop(); }
+      if (session) { leftWhileRecording = true; session.stop(); document.body.classList.remove('camera-recording'); }
       cam.stopStream();            // never leave the camera or microphone running in the background
       stopWatch();
     },

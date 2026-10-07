@@ -6,10 +6,33 @@ import { sleep, uuid } from './util.js';
 
 export function pickVideoMime() {
   if (!window.MediaRecorder) return '';
-  // MP4 first: plays everywhere, seeks properly, is easy for the organiser to edit. WebM only if the phone cannot do MP4.
-  const list = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4',
-    'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
-  return list.find((m) => MediaRecorder.isTypeSupported(m)) || '';
+  // Prefer formats that are natively friendly to the current browser. Safari/iOS has
+  // stronger MP4 support, while Chromium/Android generally prefers WebM. Always let
+  // MediaRecorder decide what is actually supported instead of guessing.
+  const ua = navigator.userAgent || '';
+  const safariLike = /Safari\//.test(ua) && !/Chrome|CriOS|Android|Edg\//.test(ua);
+  const iosLike = /iPhone|iPad|iPod/.test(ua);
+  const lists = safariLike || iosLike
+    ? [
+        // Modern iOS/iPadOS Safari supports WebM and it avoids known portrait/rotation
+        // edge cases seen with some MP4 MediaRecorder variants. Older iOS falls through
+        // automatically to MP4 because isTypeSupported() rejects WebM there.
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=vp9,opus',
+        'video/webm',
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4;codecs=avc1',
+        'video/mp4',
+      ]
+    : [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4;codecs=avc1',
+        'video/mp4',
+      ];
+  return lists.find((m) => MediaRecorder.isTypeSupported(m)) || '';
 }
 
 export class CameraError extends Error {
@@ -69,7 +92,7 @@ export async function requestMediaPermissions() {
 export class Camera {
   constructor(video) {
     this.video = video; this.stream = null; this.facing = 'environment';
-    this.caps = { torch: false, zoom: null, flip: false };
+    this.caps = { torch: false, zoom: null, flip: false, focus: false };
     this.torchOn = false; this.wake = null; this.session = null;
   }
   get active() { return !!this.stream && this.stream.getVideoTracks().some((t) => t.readyState === 'live'); }
@@ -81,7 +104,12 @@ export class Camera {
     this.facing = facing;
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1080, max: 1920 },
+          height: { ideal: 1920, max: 1920 },
+          aspectRatio: { ideal: 9 / 16 },
+        }, audio: false });
     } catch (e) {
       try { // some phones refuse the size hints: ask for any camera
         this.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -95,6 +123,7 @@ export class Camera {
     this.facing = settings.facingMode || facing;
     const c = track.getCapabilities ? track.getCapabilities() : {};
     this.caps.torch = !!c.torch;
+    this.caps.focus = Array.isArray(c.focusMode) && c.focusMode.includes('continuous');
     this.caps.zoom = c.zoom && c.zoom.max > c.zoom.min ? { min: c.zoom.min, max: c.zoom.max, step: c.zoom.step || 0.1, value: settings.zoom || c.zoom.min } : null;
     try {
       const devs = await navigator.mediaDevices.enumerateDevices();
@@ -164,9 +193,13 @@ export class Camera {
     const recId = uuid();
     const subId = meta.subId || uuid();
     let rec;
+    const recordStream = new MediaStream(tracks);
     try {
-      rec = new MediaRecorder(new MediaStream(tracks), { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: bitrate, audioBitsPerSecond: 128000 });
-    } catch { rec = new MediaRecorder(new MediaStream(tracks)); }
+      rec = new MediaRecorder(recordStream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: bitrate, audioBitsPerSecond: 128000 });
+    } catch {
+      try { rec = new MediaRecorder(recordStream); }
+      catch { audio.cleanup(); throw new CameraError('unsupported', 'This phone cannot record video in a format the browser supports. You can use the device camera picker instead.'); }
+    }
     const type = (rec.mimeType || mime || 'video/mp4').split(';')[0];
     const chunks = []; let i = 0, persistProblem = false;
     await kv.set('activeRec', { recId, subId, type, startedAt: new Date().toISOString(), meta }).catch(() => { persistProblem = true; });

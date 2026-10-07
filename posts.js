@@ -75,14 +75,22 @@ export function mountPosts(root, app) {
   }
 
   function cluster(list) {
+    // Screen-space grid bucketing keeps large memory collections responsive.
+    // Only nearby cells are checked, avoiding the old O(n²) scan.
+    const cellSize = 48;
+    const cells = new Map();
     const result = [];
     for (const item of list) {
       if (!hasCoords(item)) continue;
       const x = map ? map.latLonToScreen(Number(item.latitude), Number(item.longitude)) : { x: 0, y: 0 };
+      const gx = Math.floor(x.x / cellSize), gy = Math.floor(x.y / cellSize);
       let hit = null;
-      for (const c of result) {
-        const d = Math.hypot(c.screen.x - x.x, c.screen.y - x.y);
-        if (d < 46) { hit = c; break; }
+      for (let ox = -1; ox <= 1 && !hit; ox++) for (let oy = -1; oy <= 1 && !hit; oy++) {
+        const bucket = cells.get(`${gx + ox}:${gy + oy}`);
+        if (!bucket) continue;
+        for (const c of bucket) {
+          if (Math.hypot(c.screen.x - x.x, c.screen.y - x.y) < 46) { hit = c; break; }
+        }
       }
       if (hit) {
         hit.items.push(item);
@@ -90,7 +98,12 @@ export function mountPosts(root, app) {
         hit.lat = hit.items.reduce((a, v) => a + Number(v.latitude), 0) / n;
         hit.lon = hit.items.reduce((a, v) => a + Number(v.longitude), 0) / n;
         hit.screen = map.latLonToScreen(hit.lat, hit.lon);
-      } else result.push({ lat: Number(item.latitude), lon: Number(item.longitude), items: [item], screen: x });
+      } else {
+        const c = { lat: Number(item.latitude), lon: Number(item.longitude), items: [item], screen: x };
+        result.push(c);
+        const key = `${gx}:${gy}`;
+        const bucket = cells.get(key) || []; bucket.push(c); cells.set(key, bucket);
+      }
     }
     return result.map((c) => ({
       id: 'memory:' + c.items.map((x) => x.id).join(','), lat: c.lat, lon: c.lon, kind: 'memory', count: c.items.length,
@@ -98,15 +111,21 @@ export function mountPosts(root, app) {
     }));
   }
 
+
+  async function mapThumbs(clusters) {
+    const out = new Array(clusters.length); let next = 0;
+    const worker = async () => { while (next < clusters.length) { const i = next++; out[i] = clusters[i].imageUrl || await urlForThumb(clusters[i].items[0]); } };
+    await Promise.all(Array.from({ length: Math.min(6, clusters.length) }, worker));
+    return out;
+  }
+
   async function syncMap() {
     if (!map) return;
     const geo = current.filter(hasCoords);
     const markers = [];
     const clusters = cluster(geo);
-    for (const c of clusters) {
-      const img = c.imageUrl || await urlForThumb(c.items[0]);
-      c.imageUrl = img; markers.push(c);
-    }
+    const thumbs = await mapThumbs(clusters);
+    clusters.forEach((c, i) => { c.imageUrl = thumbs[i] || ''; markers.push(c); });
     map.setMarkers(markers);
   }
 
@@ -192,12 +211,30 @@ export function mountPosts(root, app) {
     map = new TileMap(mapHost, { lat: app.cfg.mapCenterLat, lon: app.cfg.mapCenterLon, zoom: Math.max(app.cfg.mapZoom, 13), tileUrl: app.cfg.tileUrl,
       onMarkerClick: (m) => openMemory(m.items), label: 'Your JOTA-JOTI captures mapped to where they were taken.' });
     startWatch();
-    offFix = onFix((f) => { if (map) map.setUser(f); });
+    offFix = onFix((f) => {
+      if (!map) return;
+      map.setUser(f);
+      // On an empty memory map, the first reliable location is a better starting view
+      // than the event default. Once the user has moved the map or a memory has been
+      // fitted, do not keep recentering them unexpectedly.
+      if (!hasFitted && !userFitted && !current.some(hasCoords)) {
+        map.setView(f.latitude, f.longitude, Math.max(map.zoom, 14));
+        userFitted = true;
+      }
+    });
     if (lastFix()) map.setUser(lastFix());
     return { mapHost, rail: shell.querySelector('#memory-rail'), stats: shell.querySelector('#memory-stats-text'), count: shell.querySelector('#memory-count'), noLocation: shell.querySelector('#memory-no-location'), noLocationList: shell.querySelector('#memory-no-location-list') };
   }
 
   let ui = null;
+
+    async function loadRailThumbs(list) {
+      const out = new Array(list.length); let next = 0;
+      const worker = async () => { while (next < list.length) { const i = next++; out[i] = await urlForThumb(list[i]); } };
+      await Promise.all(Array.from({ length: Math.min(6, list.length) }, worker));
+      return out;
+    }
+
   async function render() {
     if (!active) return;
     if (!ui) ui = renderShell();
@@ -212,13 +249,18 @@ export function mountPosts(root, app) {
     ui.count.textContent = `${merged.length} ${merged.length === 1 ? 'capture' : 'captures'}`;
     ui.stats.textContent = `${photoCount} photos · ${videoCount} videos · ${mapped.length} on the map${localWaiting ? ` · ${localWaiting} waiting` : ''}`;
     ui.rail.replaceChildren();
-    for (const s of merged.slice(0, 36)) {
-      const thumb = await urlForThumb(s);
+    const visible = merged.slice(0, 36);
+    const thumbs = await loadRailThumbs(visible);
+    visible.forEach((s, i) => {
+      const thumb = thumbs[i];
       ui.rail.append(el('button', { class: 'memory-card', onclick: () => openMemory([s]), title: s.challengeName || (s.mediaType === 'video' ? 'Video' : 'Photo') },
         el('div', { class: 'memory-card-art' }, thumb ? el('img', { src: thumb, alt: '' }) : el('span', {}, s.mediaType === 'video' ? '▶' : '•'), s.mediaType === 'video' ? el('span', { class: 'memory-card-kind' }, 'VIDEO') : null),
         el('div', { class: 'memory-card-copy' }, el('b', {}, s.challengeName || (s.mediaType === 'video' ? 'Video' : 'Photo')), el('span', {}, hasCoords(s) ? niceDate(s.capturedAt) : 'No location'))));
-    }
-    if (!merged.length) ui.rail.append(el('div', { class: 'memory-empty' }, el('b', {}, 'No posts yet'), el('p', { class: 'small muted' }, 'Your captures will appear here as soon as you take them.')));
+    });
+    if (!merged.length) ui.rail.append(el('div', { class: 'memory-empty' },
+      el('b', {}, 'Your memory map is ready'),
+      el('p', { class: 'small muted' }, 'Take a photo or video and, when location is available, it will be placed on this map where you captured it.'),
+      el('button', { class: 'btn small', onclick: () => app.go('camera') }, 'Open camera')));
     const noLoc = merged.filter((s) => !hasCoords(s));
     ui.noLocation.hidden = !noLoc.length || !mapped.length;
     ui.noLocationList.replaceChildren(...(!noLoc.length ? [] : noLoc.slice(0, 12).map((s) => el('button', { class: 'memory-list-row', onclick: () => showDetail(s) },

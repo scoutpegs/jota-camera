@@ -20,7 +20,31 @@ async function cached(key, path, pick) {
   }
 }
 
-export const getChallenges = () => cached('challenges', '/api/challenges', (r) => r.challenges);
+export async function getChallenges() {
+  const result = await cached('challenges', '/api/challenges', (r) => r.challenges);
+  const sheet = await getCachedSheetConfig().catch(() => null);
+  const locations = Array.isArray(sheet?.locations) ? sheet.locations : [];
+  if (!locations.length || !Array.isArray(result.items)) return result;
+
+  const byId = new Map(locations.map((p) => [String(p.id), normalisePin(p)]));
+  const byChallenge = new Map();
+  for (const p of locations) {
+    for (const n of (p.challengeNumbers || [])) {
+      const key = String(n).trim();
+      if (!key) continue;
+      if (!byChallenge.has(key)) byChallenge.set(key, normalisePin(p));
+    }
+  }
+  const enriched = result.items.map((c) => {
+    if (c.location) return c;
+    const explicit = c.locationId ? byId.get(String(c.locationId)) : null;
+    const byNumber = byChallenge.get(String(c.number || '').trim());
+    const loc = explicit || byNumber;
+    if (!loc) return c;
+    return { ...c, location: { id: loc.id, name: loc.name, latitude: loc.latitude, longitude: loc.longitude } };
+  });
+  return { ...result, items: enriched };
+}
 
 export async function getPins() {
   // Prefer the Google Sheet on every online map refresh.

@@ -1,0 +1,10 @@
+<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JOTA-JOTI</title><script>
+(function(){
+  var p=location.pathname, q=location.search+location.hash;
+  if (/\/admin\/?$/.test(p)) { location.replace(p.replace(/\/admin\/?$/, '/admin.html')+q); return; }
+  var base;
+  if (/\/$/.test(p)) base=p;
+  else if (/^\/[^/]+$/.test(p)) base=p+'/';
+  else base=p.slice(0,p.lastIndexOf('/')+1);
+  location.replace(location.origin+base+'index.html'+q);
+})();</script></head><body><p>Opening JOTA-JOTI…</p></body></html>

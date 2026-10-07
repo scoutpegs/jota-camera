@@ -122,33 +122,48 @@ export function pickAudioMime() {
   return list.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
 }
 export class CustomRecorder {
-  constructor(maxSeconds) { this.max = maxSeconds; this.chunks = []; }
+  constructor(maxSeconds) { this.max = maxSeconds; this.chunks = []; this.stopped = false; this.stopPromise = null; this.tick = null; }
   async start(onTick) {
     if (debug.get('noMic')) throw Object.assign(new Error('Microphone blocked'), { name: 'NotAllowedError' });
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('Audio recording is not available in this browser.');
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     const mime = pickAudioMime();
-    this.rec = new MediaRecorder(this.stream, mime ? { mimeType: mime } : undefined);
+    try { this.rec = new MediaRecorder(this.stream, mime ? { mimeType: mime } : undefined); }
+    catch {
+      try { this.rec = new MediaRecorder(this.stream); }
+      catch { this.stream.getTracks().forEach((t) => t.stop()); throw new Error('Audio recording is not supported by this browser.'); }
+    }
     this.rec.ondataavailable = (e) => { if (e.data && e.data.size) this.chunks.push(e.data); };
     this.t0 = performance.now();
     this.rec.start(500);
     this.tick = setInterval(() => {
-      const s = (performance.now() - this.t0) / 1000;
-      onTick && onTick(s);
-      if (s >= this.max) this.stopPromise = this.stop();
+      const elapsed = (performance.now() - this.t0) / 1000;
+      onTick && onTick(Math.min(elapsed, this.max));
+      if (elapsed >= this.max && !this.stopped) this.stop();
     }, 200);
   }
   stop() {
-    if (this.stopPromise && this.stopped) return this.stopPromise;
+    if (this.stopPromise) return this.stopPromise;
     clearInterval(this.tick);
-    return new Promise((resolve) => {
+    this.stopPromise = new Promise((resolve) => {
       const finish = () => {
-        this.stream.getTracks().forEach((t) => t.stop());
-        const type = (this.rec.mimeType || pickAudioMime() || 'audio/webm').split(';')[0];
-        resolve({ blob: new Blob(this.chunks, { type }), duration: Math.min(this.max, (performance.now() - this.t0) / 1000) });
+        if (this.stopped && this._result) return resolve(this._result);
+        this.stopped = true;
+        this.stream?.getTracks().forEach((t) => t.stop());
+        const type = (this.rec?.mimeType || pickAudioMime() || 'audio/webm').split(';')[0];
+        this._result = { blob: new Blob(this.chunks, { type }), duration: Math.min(this.max, (performance.now() - this.t0) / 1000) };
+        resolve(this._result);
       };
-      if (this.rec.state === 'inactive') return finish();
-      this.rec.onstop = finish; this.rec.stop(); this.stopped = true;
+      if (!this.rec || this.rec.state === 'inactive') return finish();
+      this.rec.addEventListener('stop', finish, { once: true });
+      try { this.rec.stop(); } catch { finish(); }
     });
+    return this.stopPromise;
   }
-  cancel() { clearInterval(this.tick); try { this.rec.state !== 'inactive' && this.rec.stop(); } catch { /* ignore */ } this.stream && this.stream.getTracks().forEach((t) => t.stop()); }
+  cancel() {
+    clearInterval(this.tick);
+    try { if (this.rec && this.rec.state !== 'inactive') this.rec.stop(); } catch { /* ignore */ }
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stopped = true;
+  }
 }

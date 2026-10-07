@@ -13,7 +13,7 @@ import { pickVideoMime } from './camera.js';
 import { fetchSounds } from './audio.js';
 import { getPins } from './data.js';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 
 export function mountSettings(root, app) {
   let taps = 0, tapTimer;

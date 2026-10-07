@@ -64,6 +64,18 @@ function showBootError(error) {
   boot.append(box);
 }
 
+function updateViewportHeight() {
+  const h = window.visualViewport?.height || window.innerHeight;
+  document.documentElement.style.setProperty('--app-height', `${Math.round(h)}px`);
+}
+updateViewportHeight();
+window.addEventListener('resize', updateViewportHeight, { passive: true });
+window.addEventListener('orientationchange', () => window.setTimeout(updateViewportHeight, 80), { passive: true });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', updateViewportHeight, { passive: true });
+  window.visualViewport.addEventListener('scroll', updateViewportHeight, { passive: true });
+}
+
 export const app = {
   cfg, view: null, params: {},
   ctx: { mode: 'photo', challenge: null, sound: null },

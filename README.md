@@ -1,3 +1,9 @@
+# JOTA-JOTI Camera / Media Platform
+
+Final product-hardening build. The participant site is flat-root GitHub Pages ready, with `/admin/` compatibility and light-only mobile-first camera UI.
+
+Service worker version: `v14-platform-hardening`.
+
 # JOTA-JOTI Camera
 
 A phone-first JOTA-JOTI photo and video app for Kalgoorlie Scout Group. Participants can capture photos or videos, complete challenges, work offline, and upload when a connection returns. Organisers use the `/admin/` page to review media, manage challenges and map pins, and monitor the Google Drive backup.
@@ -72,3 +78,11 @@ The My posts screen is map-first. Geotagged captures are shown as thumbnail mark
 The built-in map opens centred on Boulder in the Kalgoorlie-Boulder area. Australia Post lists Boulder, WA as postcode 6432; postcode 6430 is used for Kalgoorlie and surrounding localities. The app uses the Boulder map centre and the organiser Google Sheet remains the source of truth for locations.
 
 In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to attach challenge numbers to a location. Those challenges then appear on the map and can launch the camera directly.
+
+
+### GitHub Pages layout
+This release is intentionally flat. Upload the package contents directly to the repository root. Use the normal site URL for participants and `/admin` or `/admin/` for organiser tools; GitHub Pages will route that path to `admin.html` through the included 404 handler.
+
+## Final release notes
+
+This release is a flat GitHub Pages package. Upload every file directly to the repository root. The included `404.html` routes `/admin` and `/admin/` to `admin.html`. See `FINAL-TEST-REPORT.md` and `BUTTON-AUDIT.md` for the final build and interaction review.

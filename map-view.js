@@ -1,6 +1,6 @@
 // Map tab: the organiser's Google Sheet controls the location list and map link.
 // The app uses lightweight canvas tiles for the in-app view and can hand off to Google Maps for directions.
-import { el, icon, sheet, fmtDist, haversine } from './util.js';
+import { el, icon, sheet, fmtDist, haversine, toast } from './util.js';
 import { cfg } from './config.js';
 import { TileMap } from './tilemap.js';
 import { getPins, getChallenges } from './data.js';
@@ -71,13 +71,26 @@ export function mountMap(root, app) {
       el('div', { class: 'challenge-map-list' }, ...cs.map((c) => {
         const canPhoto = c.requiredMedia !== 'video' && cfg.photosEnabled;
         const canVideo = c.requiredMedia !== 'photo' && cfg.videosEnabled && (!location || location.videoAllowed !== false);
+        const requiredRadius = cfg.enforceRadius ? Number(c.radius || 0) : 0;
+        const f = lastFix();
+        const distance = location && f ? haversine(f.latitude, f.longitude, Number(location.latitude), Number(location.longitude)) : null;
+        const outside = requiredRadius > 0 && (distance == null || distance > requiredRadius);
+        const rangeNote = outside
+          ? el('p', { class: 'small map-range-warning' }, distance == null ? `This challenge needs your location and must be completed within ${requiredRadius} m.` : `Move closer to the pin. You are ${fmtDist(distance)} away and this challenge requires ${requiredRadius} m.`)
+          : requiredRadius > 0 && distance != null ? el('p', { class: 'small map-range-ok' }, `You’re ${fmtDist(distance)} away · within the ${requiredRadius} m challenge area.`)
+          : null;
+        const goChecked = (mode) => {
+          if (outside) { toast('Move closer to the challenge location before starting this challenge.', ''); return; }
+          go(c, mode);
+        };
         return el('div', { class: 'challenge-map-item' },
           el('div', { class: 'row' }, el('div', { class: 'challenge-map-number' }, String(c.number || '•')), el('div', { class: 'grow' }, el('b', {}, c.name), el('span', { class: 'small muted' }, `${c.points ? c.points + ' points' : mediaLabel(c.requiredMedia)}${c.location?.name ? ' · ' + c.location.name : ''}`))),
           c.description ? el('p', { class: 'small muted' }, c.description) : null,
           c.instructions ? el('p', { class: 'small' }, c.instructions) : null,
+          rangeNote,
           el('div', { class: 'row' },
-            canPhoto ? el('button', { class: 'btn small grow', onclick: () => go(c, 'photo') }, 'Take photo') : null,
-            canVideo ? el('button', { class: 'btn small ghost grow', onclick: () => go(c, 'video') }, 'Record video') : null));
+            canPhoto ? el('button', { class: 'btn small grow', disabled: outside, onclick: () => goChecked('photo') }, 'Take photo') : null,
+            canVideo ? el('button', { class: 'btn small ghost grow', disabled: outside, onclick: () => goChecked('video') }, 'Record video') : null));
       })),
       location ? el('button', { class: 'btn ghost block', onclick: () => window.open(googleMapsDirectionsUrl(location), '_blank', 'noopener,noreferrer') }, 'Get directions') : null,
       el('button', { class: 'btn ghost block', onclick: () => { s.close(); app.go('challenges', {}, { replace: true }); } }, 'View all challenges'));
@@ -150,7 +163,7 @@ export function mountMap(root, app) {
       emptyMap.hidden = !!(pins.length || challengeCount);
       emptyMap.innerHTML = '';
       if (!emptyMap.hidden) {
-        emptyMap.append(el('b', {}, 'Boulder map ready'), el('p', { class: 'small' }, 'The base map is available now. Locations and challenges from the organiser Google Sheet will appear here automatically.'));
+        emptyMap.append(el('b', {}, 'Boulder map ready'), el('p', { class: 'small' }, 'The base map is available now. Locations and challenges from the organiser Google Sheet will appear here automatically.'), el('button', { class: 'btn small', onclick: () => app.go('camera') }, 'Open camera'));
       }
       paint();
       const focusPoints = [...pins.map((x) => ({ lat: x.latitude, lon: x.longitude })), ...challenges.filter((c) => c.location).map((c) => ({ lat: Number(c.location.latitude), lon: Number(c.location.longitude) }))];

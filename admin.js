@@ -87,68 +87,223 @@ const loadSheetConfigAdmin = (timeout = 7000) => new Promise((resolve) => {
 });
 
 /* ---------- Media ---------- */
-let mq = { q: '', type: '', review: '', upload: '', offset: 0 }, items = [], selected = new Set();
+let mq = { q: '', type: '', review: '', upload: '', challenge: '', offset: 0 }, items = [], selected = new Set();
+const PAGE = 48;
 const mediaFilter = () => {
   let f = ''; const t = clean(mq.q);
-  if (mq.type) f += `&media_type=eq.${mq.type}`; if (mq.review) f += `&review_status=eq.${mq.review}`;
-  if (mq.upload === 'UPLOADED') f += '&upload_status=eq.UPLOADED'; else if (mq.upload) f += '&upload_status=neq.UPLOADED';
+  if (mq.type) f += `&media_type=eq.${mq.type}`;
+  if (mq.review) f += `&review_status=eq.${mq.review}`;
+  if (mq.upload === 'UPLOADED') f += '&upload_status=eq.UPLOADED';
+  else if (mq.upload) f += '&upload_status=neq.UPLOADED';
   if (t) f += '&' + orq(['participant_name', 'caption', 'sound_label'], encodeURIComponent(t));
+  if (mq.challenge) f += `&challenge_id=eq.${encodeURIComponent(mq.challenge)}`;
   return f;
 };
+async function loadAllMediaRows(filter = mediaFilter()) {
+  const rows = [];
+  for (let offset = 0; offset < 50000; offset += 1000) {
+    const batch = await sb(`submissions?select=*,challenges(name)&order=captured_at.desc&limit=1000&offset=${offset}${filter}`);
+    rows.push(...batch);
+    if (batch.length < 1000) break;
+  }
+  return rows;
+}
+function safeFilename(s) {
+  return String(s || 'file').replace(/[\\/:*?"<>|\x00-\x1F]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || 'file';
+}
+function extFor(row) {
+  const key = String(row.mediaKey || '');
+  const ext = key.includes('.') ? key.split('.').pop().replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+  return ext || (row.mediaType === 'video' ? 'mp4' : 'jpg');
+}
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+function crc32(data) {
+  let c = 0xffffffff;
+  for (let i = 0; i < data.length; i++) c = CRC_TABLE[(c ^ data[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function u16(n) { return [n & 255, (n >>> 8) & 255]; }
+function u32(n) { return [n >>> 0 & 255, n >>> 8 & 255, n >>> 16 & 255, n >>> 24 & 255]; }
+const ZIP_ENCODER = new TextEncoder();
+function dosDateTime(dateValue) {
+  const d = new Date(dateValue || Date.now());
+  const year = Math.max(1980, d.getFullYear());
+  return {
+    time: ((d.getHours() & 31) << 11) | ((d.getMinutes() & 63) << 5) | Math.floor(d.getSeconds() / 2),
+    date: (((year - 1980) & 127) << 9) | (((d.getMonth() + 1) & 15) << 5) | (d.getDate() & 31),
+  };
+}
+function zipStore(files) {
+  const local = [], central = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = ZIP_ENCODER.encode(String(f.name));
+    const data = f.data instanceof Uint8Array ? f.data : new Uint8Array(f.data);
+    if (name.length > 0xffff || data.length > 0xffffffff) throw new Error('A ZIP entry is too large.');
+    const crc = crc32(data);
+    const { time, date } = dosDateTime(f.date);
+
+    const lh = new Uint8Array(30 + name.length);
+    const lv = new DataView(lh.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0x0800, true); // UTF-8 names
+    lv.setUint16(8, 0, true);      // store, no compression
+    lv.setUint16(10, time, true);
+    lv.setUint16(12, date, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, data.length >>> 0, true);
+    lv.setUint32(22, data.length >>> 0, true);
+    lv.setUint16(26, name.length, true);
+    lv.setUint16(28, 0, true);
+    lh.set(name, 30);
+    local.push(lh, data);
+
+    const ch = new Uint8Array(46 + name.length);
+    const cv = new DataView(ch.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true); // made by
+    cv.setUint16(6, 20, true); // needed
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint16(12, time, true);
+    cv.setUint16(14, date, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length >>> 0, true);
+    cv.setUint32(24, data.length >>> 0, true);
+    cv.setUint16(28, name.length, true);
+    cv.setUint16(30, 0, true);
+    cv.setUint16(32, 0, true);
+    cv.setUint16(34, 0, true);
+    cv.setUint16(36, 0, true);
+    cv.setUint32(38, 0, true);
+    cv.setUint32(42, offset >>> 0, true);
+    ch.set(name, 46);
+    central.push(ch);
+    offset += lh.length + data.length;
+  }
+  const centralSize = central.reduce((n, x) => n + x.length, 0);
+  if (files.length > 0xffff || offset > 0xffffffff || centralSize > 0xffffffff) throw new Error('The ZIP is too large for this browser export.');
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(4, 0, true);
+  ev.setUint16(6, 0, true);
+  ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true);
+  ev.setUint32(12, centralSize >>> 0, true);
+  ev.setUint32(16, offset >>> 0, true);
+  ev.setUint16(20, 0, true);
+  return new Blob([...local, ...central, end], { type: 'application/zip' });
+}
+
+async function downloadAllRows(rows, statusEl) {
+  const normalized = rows.map((r) => r.mediaKey !== undefined ? r : camel(r));
+  const uploaded = normalized.filter((r) => r.uploadStatus === 'UPLOADED' && r.mediaKey);
+  const driveOnly = normalized.filter((r) => r.storageProvider === 'DRIVE' && r.backupUrl && !r.mediaKey);
+  if (!uploaded.length && !driveOnly.length) throw new Error('There are no uploaded media files to download.');
+  const totalBytes = uploaded.reduce((n, r) => n + Number(r.size || 0), 0);
+  const partLimit = 180 * 1024 * 1024;
+  const plannedParts = Math.max(1, Math.ceil(Math.max(totalBytes, 1) / partLimit));
+  let files = [], partRows = [], partBytes = 0, done = 0, partNo = 0;
+  const makeManifest = (rs) => {
+    const lines = ['id,participant,media_type,captured_at,storage_provider,backup_status,backup_url'];
+    for (const r of rs) lines.push([r.id, r.participantName, r.mediaType, r.capturedAt, r.storageProvider, r.backupStatus, r.backupUrl].map((v) => String(v ?? '').replace(/"/g, '""')).map((v) => `"${v}"`).join(','));
+    return new TextEncoder().encode(lines.join('\n'));
+  };
+  const flush = async () => {
+    if (!files.length && !partRows.length) return;
+    files.push({ name: 'metadata.csv', data: makeManifest(partRows) });
+    partNo++;
+    const blob = zipStore(files);
+    const suffix = plannedParts > 1 ? `-part-${partNo}-of-${plannedParts}` : '';
+    save(blob, `JOTA-JOTI-media-${new Date().toISOString().slice(0,10)}${suffix}.zip`);
+    files = []; partRows = []; partBytes = 0;
+    await new Promise((r) => setTimeout(r, 150));
+  };
+  if (totalBytes > partLimit && statusEl) statusEl.textContent = `Large download · split into ${plannedParts} smaller ZIPs`;
+  for (const r of uploaded) {
+    const signed = await sign('media', [r.mediaKey]);
+    const url = signed[r.mediaKey];
+    if (!url) continue;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Could not read ${r.participantName}'s ${r.mediaType}.`);
+    const data = new Uint8Array(await resp.arrayBuffer());
+    if (files.length && partBytes + data.byteLength > partLimit) await flush();
+    files.push({
+      name: `${safeFilename(r.participantName)}/${safeFilename(r.id.slice(0, 8))}_${safeFilename(r.participantName)}.${extFor(r)}`,
+      data, date: r.capturedAt,
+    });
+    partRows.push(r); partBytes += data.byteLength; done++;
+    if (statusEl) statusEl.textContent = `Preparing download · ${done}/${uploaded.length}`;
+  }
+  if (driveOnly.length) {
+    const lines = ['Some files are stored only in Google Drive and could not be fetched into this ZIP from the browser.', ''];
+    for (const r of driveOnly) lines.push(`${r.participantName} · ${r.id} · ${r.backupUrl}`);
+    files.push({ name: 'Drive-backup-links.txt', data: new TextEncoder().encode(lines.join('\n')) });
+  }
+  await flush();
+  audit('Downloaded media archive', '', `${rows.length} submissions${partNo > 1 ? ` · ${partNo} ZIP parts` : ''}`);
+  if (statusEl) statusEl.textContent = driveOnly.length
+    ? `Downloaded ${done} files · ${driveOnly.length} Drive-only links included${partNo > 1 ? ` · ${partNo} ZIPs` : ''}`
+    : `Downloaded ${done} files${partNo > 1 ? ` · ${partNo} ZIPs` : ''}`;
+}
+
+async function deleteRowsBatched(rows) {
+  for (let start = 0; start < rows.length; start += 50) {
+    const batch = rows.slice(start, start + 50);
+    const keys = batch.flatMap((i) => [i.media_key, i.thumb_key, i.audio_key]).filter(Boolean);
+    if (keys.length) {
+      for (let k = 0; k < keys.length; k += 100) await sb(`${U}/storage/v1/object/media`, { method: 'DELETE', body: { prefixes: keys.slice(k, k + 100) } });
+    }
+    await sb(`submissions?id=in.(${batch.map((i) => i.id).join(',')})`, { method: 'DELETE' });
+  }
+  audit('Deleted submissions', '', `${rows.length} items`);
+}
 async function media() {
-  const { data, headers } = await sb(`submissions?select=*,challenges(name)&order=captured_at.desc&limit=48&offset=${mq.offset}${mediaFilter()}`, { full: true, headers: { prefer: 'count=exact' } });
+  const [result, challengeRows] = await Promise.all([
+    sb(`submissions?select=*,challenges(name)&order=captured_at.desc&limit=${PAGE}&offset=${mq.offset}${mediaFilter()}`, { full: true, headers: { prefer: 'count=exact' } }),
+    sb('challenges?select=id,name,number&order=number,name').catch(() => []),
+  ]);
+  const { data, headers } = result;
   const total = Number((headers.get('content-range') || '').split('/')[1]) || 0;
   const th = await sign('media', data.map((r) => r.thumb_key)).catch(() => ({}));
   items = data.map((r) => ({ ...camel(r), challengeName: r.challenges && r.challenges.name, thumbUrl: th[r.thumb_key] || null }));
-  pane(`<div class="row"><input id="q" placeholder="Search name, caption, sound" value="${esc(mq.q)}">
-    <select id="ty"><option value="">Photos + videos</option><option value="photo">Photos</option><option value="video">Videos</option></select>
-    <select id="rv"><option value="">Any review state</option><option>PENDING</option><option>APPROVED</option><option>REJECTED</option></select>
-    <select id="up"><option value="">Any upload state</option><option value="UPLOADED">Uploaded</option><option value="WAITING">Not finished</option></select>
-    <button id="go" class="btn pri">Search</button><button id="csv">Download CSV</button></div>
-    <div class="row"><span class="muted">${total} items</span><button id="sa">Select page</button><button id="ap">Approve</button><button id="rj">Reject</button><button id="dl" class="bad">Delete</button><button id="dn">Download selected</button></div>
-    <div class="grid">${items.map((i) => `<div class="tile"><div class="th" data-open="${i.id}" style="${i.thumbUrl ? `background-image:url('${i.thumbUrl}')` : ''}"></div>
-      <div class="m"><label style="margin:0"><input type="checkbox" data-sel="${i.id}" ${selected.has(i.id) ? 'checked' : ''}> <b>${esc(i.participantName)}</b></label><br>
-      ${i.mediaType} · ${esc(i.challengeName || 'no challenge')}<br><span class="tag ${i.reviewStatus}">${i.reviewStatus}</span> <span class="tag">${i.storageProvider || 'LOCAL'}</span> <span class="tag">Backup: ${i.backupStatus || 'PENDING'}</span><br><span class="muted">${fmt(i.capturedAt)}</span></div></div>`).join('')}</div>
-    <div class="row" style="margin-top:12px"><button id="pv" ${mq.offset ? '' : 'disabled'}>Previous</button><button id="nx" ${mq.offset + 48 < total ? '' : 'disabled'}>Next</button></div><dialog id="dlg"></dialog>`);
-  $('#ty').value = mq.type; $('#rv').value = mq.review; $('#up').value = mq.upload;
-  $('#go').onclick = () => { mq = { q: $('#q').value, type: $('#ty').value, review: $('#rv').value, upload: $('#up').value, offset: 0 }; media().catch(fail); };
-  $('#pv').onclick = () => { mq.offset -= 48; media().catch(fail); }; $('#nx').onclick = () => { mq.offset += 48; media().catch(fail); };
+  const challengeOptions = challengeRows.map(camel).map((c) => `<option value="${esc(c.id)}">${esc(c.number != null ? `#${c.number} · ${c.name}` : c.name)}</option>`).join('');
+  pane(`<section class="admin-hero"><div><span class="eyebrow">JOTA-JOTI CAMERA</span><h2>Media library</h2><p class="muted">Review, export and manage participant photos and videos.</p></div><div class="hero-stat"><b>${total}</b><span>submissions</span></div></section>
+    <section class="admin-toolbar card"><div class="filter-grid"><input id="q" placeholder="Search participant, caption or sound" value="${esc(mq.q)}"><select id="ty"><option value="">Photos + videos</option><option value="photo">Photos</option><option value="video">Videos</option></select><select id="rv"><option value="">Any review state</option><option>PENDING</option><option>APPROVED</option><option>REJECTED</option></select><select id="up"><option value="">Any upload state</option><option value="UPLOADED">Uploaded</option><option value="WAITING">Not finished</option></select><select id="ch"><option value="">All challenges</option>${challengeOptions}</select><button id="go" class="btn pri">Apply</button></div>
+    <div class="admin-actions"><button id="csv" class="btn">Export CSV</button><button id="sa" class="btn">Select page</button><button id="sar" class="btn">Select all results</button><button id="ap" class="btn">Approve</button><button id="rj" class="btn">Reject</button><button id="dn" class="btn">Download selected</button><button id="dna" class="btn">Download all</button><button id="dl" class="btn danger">Delete selected</button><button id="dla" class="btn danger">Delete all</button></div><div id="bulk-status" class="small muted" aria-live="polite"></div></section>
+    <section class="media-grid">${items.map((i) => `<article class="media-tile"><button class="thumb-btn" data-open="${i.id}" aria-label="Open ${esc(i.mediaType)} from ${esc(i.participantName)}"><div class="tile-thumb" style="${i.thumbUrl ? `background-image:url('${i.thumbUrl}')` : ''}">${!i.thumbUrl ? `<span>${i.mediaType === 'video' ? '▶' : 'PHOTO'}</span>` : ''}</div></button><div class="tile-body"><label class="select-line"><input type="checkbox" data-sel="${i.id}" ${selected.has(i.id) ? 'checked' : ''}><span class="name">${esc(i.participantName)}</span></label><div class="tile-meta">${esc(i.mediaType)} · ${esc(i.challengeName || 'No challenge')}</div><div class="tags"><span class="tag ${i.reviewStatus}">${esc(i.reviewStatus)}</span><span class="tag">${esc(i.storageProvider || 'LOCAL')}</span><span class="tag">${esc(i.backupStatus || 'PENDING')}</span></div><time>${esc(fmt(i.capturedAt))}</time></div></article>`).join('') || '<div class="empty-state"><b>No submissions found</b><p>Try changing the filters or take the first JOTA-JOTI capture.</p></div>'}</section>
+    <div class="pager"><button id="pv" ${mq.offset ? '' : 'disabled'}>Previous</button><span>${total ? `${mq.offset + 1}–${Math.min(mq.offset + PAGE, total)} of ${total}` : '0 items'}</span><button id="nx" ${mq.offset + PAGE < total ? '' : 'disabled'}>Next</button></div><dialog id="dlg"></dialog>`);
+  $('#ty').value = mq.type; $('#rv').value = mq.review; $('#up').value = mq.upload; $('#ch').value = mq.challenge;
+  $('#go').onclick = () => { mq = { q: $('#q').value, type: $('#ty').value, review: $('#rv').value, upload: $('#up').value, challenge: $('#ch').value, offset: 0 }; media().catch(fail); };
+  $('#pv').onclick = () => { mq.offset -= PAGE; media().catch(fail); }; $('#nx').onclick = () => { mq.offset += PAGE; media().catch(fail); };
   $('#csv').onclick = async () => {
-    const rows = []; for (let o = 0; o < 10000; o += 1000) { const r = await sb(`submissions?select=*,challenges(name)&order=captured_at.desc&limit=1000&offset=${o}${mediaFilter()}`); rows.push(...r); if (r.length < 1000) break; }
-    const cell = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+    const rows = await loadAllMediaRows();
+    const cell = (v) => { let x = String(v ?? ''); if (/^[=+\-@\t\r]/.test(x)) x = "'" + x; return '"' + x.replace(/"/g, '""') + '"'; };
     const cols = ['id', 'participant_name', 'media_type', 'challenge', 'caption', 'sound_label', 'captured_at', 'latitude', 'longitude', 'upload_status', 'review_status', 'size'];
-    save(new Blob([[cols.join(','), ...rows.map((r) => cols.map((c) => cell(c === 'challenge' ? r.challenges && r.challenges.name : r[c])).join(','))].join('\n')], { type: 'text/csv' }), 'jota-camera.csv');
-    audit('Exported CSV');
+    save(new Blob([[cols.join(','), ...rows.map((r) => cols.map((c) => cell(c === 'challenge' ? r.challenges && r.challenges.name : r[c])).join(','))].join('\n')], { type: 'text/csv' }), 'jota-camera.csv'); audit('Exported CSV');
   };
   $('#sa').onclick = () => { items.forEach((i) => selected.add(i.id)); media().catch(fail); };
+  $('#sar').onclick = async () => { try { const rows = await loadAllMediaRows(); selected = new Set(rows.map((r) => r.id)); media().catch(fail); } catch (e) { fail(e); } };
   document.querySelectorAll('[data-sel]').forEach((c) => c.onchange = () => (c.checked ? selected.add(c.dataset.sel) : selected.delete(c.dataset.sel)));
-  const review = (st) => async () => { if (!selected.size) return alert('Tick some items first.'); try { await sb(`submissions?id=in.(${[...selected].join(',')})`, { method: 'PATCH', body: { review_status: st } }); audit(st + ' submissions', '', selected.size + ' items'); selected.clear(); media().catch(fail); } catch (e) { fail(e); } };
+  const review = (st) => async () => { if (!selected.size) return alert('Select at least one item.'); try { await sb(`submissions?id=in.(${[...selected].join(',')})`, { method: 'PATCH', body: { review_status: st } }); audit(st + ' submissions', '', selected.size + ' items'); selected.clear(); media().catch(fail); } catch (e) { fail(e); } };
   $('#ap').onclick = review('APPROVED'); $('#rj').onclick = review('REJECTED');
-  $('#dl').onclick = async () => {
-    if (!selected.size) return alert('Tick some items first.');
-    if (!confirm(`Permanently delete ${selected.size} item(s)? This cannot be undone.`)) return;
-    try { await removeItems(items.filter((i) => selected.has(i.id))); selected.clear(); media().catch(fail); } catch (e) { fail(e); }
-  };
-  $('#dn').onclick = async () => {
-    const chosen = items.filter((i) => selected.has(i.id) && i.uploadStatus === 'UPLOADED');
-    if (!chosen.length) return alert('Tick uploaded items on this page first.');
-    const driveOnly = chosen.filter((i) => i.storageProvider === 'DRIVE' && i.backupUrl);
-    const supabase = chosen.filter((i) => !(i.storageProvider === 'DRIVE' && i.backupUrl));
-    if (supabase.length) {
-      const urls = await sign('media', supabase.map((i) => i.mediaKey), 'x');
-      for (const i of supabase) { const u = urls[i.mediaKey]; if (!u) continue; const a = document.createElement('a'); a.href = u.replace(/download=x$/, 'download=' + encodeURIComponent(`${i.participantName}_${i.id.slice(0, 8)}.${i.mediaKey.split('.').pop()}`)); a.click(); await new Promise((r) => setTimeout(r, 700)); }
-    }
-    for (const i of driveOnly) { window.open(i.backupUrl, '_blank', 'noopener'); await new Promise((r) => setTimeout(r, 250)); }
-    audit('Downloaded media', '', chosen.length + ' files');
-  };
+  $('#dl').onclick = async () => { const ids = new Set(selected); if (!ids.size) return alert('Select at least one item.'); if (!confirm(`Permanently delete ${ids.size} item(s)? This cannot be undone.`)) return; const chosen = items.filter((i) => ids.has(i.id)); try { await deleteRowsBatched(chosen.map(snake)); selected.clear(); media().catch(fail); } catch (e) { fail(e); } };
+  $('#dla').onclick = async () => { const rows = await loadAllMediaRows(); if (!rows.length) return alert('There are no submissions to delete.'); const scope = (mq.q || mq.type || mq.review || mq.upload || mq.challenge) ? 'matching the current filters' : 'in the library'; if (!confirm(`Permanently delete ALL ${rows.length} submissions ${scope}? This removes the Supabase media files and database records. Google Drive backups, if present, are retained. This cannot be undone.`)) return; const st = $('#bulk-status'); st.textContent = 'Deleting…'; try { await deleteRowsBatched(rows); selected.clear(); st.textContent = `Deleted ${rows.length} submissions.`; await media(); } catch (e) { fail(e); } };
+  $('#dn').onclick = async () => { const chosen = items.filter((i) => selected.has(i.id)); if (!chosen.length) return alert('Select at least one item.'); const st = $('#bulk-status'); st.textContent = 'Preparing download…'; try { await downloadAllRows(chosen.map(snake), st); } catch (e) { st.textContent = ''; fail(e); } };
+  $('#dna').onclick = async () => { const rows = await loadAllMediaRows(); if (!rows.length) return alert('There are no submissions to download.'); const st = $('#bulk-status'); st.textContent = 'Preparing download…'; try { await downloadAllRows(rows, st); } catch (e) { st.textContent = ''; fail(e); } };
   document.querySelectorAll('[data-open]').forEach((t) => t.onclick = () => view(items.find((i) => i.id === t.dataset.open)));
 }
-async function removeItems(list) {
-  const keys = list.flatMap((i) => [i.mediaKey, i.thumbKey, i.audioKey]).filter(Boolean);
-  if (keys.length) await sb(`${U}/storage/v1/object/media`, { method: 'DELETE', body: { prefixes: keys } });
-  await sb(`submissions?id=in.(${list.map((i) => i.id).join(',')})`, { method: 'DELETE' });
-  audit('Deleted submissions', '', list.length + ' items');
-}
+async function removeItems(list) { await deleteRowsBatched(list.map((i) => snake(i))); }
 async function view(i) {
   const d = $('#dlg');
   const urls = i.uploadStatus === 'UPLOADED' ? await sign('media', [i.mediaKey], `${i.participantName}_${i.id.slice(0, 8)}.${i.mediaKey.split('.').pop()}`) : {};
@@ -186,7 +341,7 @@ function read(root, fields) {
   if (o.locationId === '') o.locationId = null;
   return o;
 }
-function editor(table, fields, list, reload, { title, html, after } = {}) {
+function editor(table, fields, list, reload, { title, html, after, beforeDelete } = {}) {
   const d = $('#dlg');
   const open = (item) => {
     d.innerHTML = `<h3>${item ? 'Edit' : 'Add'} ${title}</h3>${form(fields, item || { active: true })}${html ? html() : ''}<p class="row" style="margin-top:12px"><button class="btn pri" id="ok">Save</button><button id="no">Cancel</button></p>`;
@@ -207,7 +362,7 @@ function editor(table, fields, list, reload, { title, html, after } = {}) {
   document.querySelectorAll('[data-e]').forEach((b) => b.onclick = () => open(list.find((x) => String(x.id) === b.dataset.e)));
   document.querySelectorAll('[data-d]').forEach((b) => b.onclick = async () => {
     if (!confirm('Delete this? Photos and videos that were already sent stay in the library.')) return;
-    try { await sb(`${table}?id=eq.${b.dataset.d}`, { method: 'DELETE' }); audit('Deleted ' + title, b.dataset.d); reload().catch(fail); } catch (e) { fail(e); }
+    try { const item = list.find((x) => String(x.id) === b.dataset.d); if (beforeDelete && item) await beforeDelete(item); await sb(`${table}?id=eq.${b.dataset.d}`, { method: 'DELETE' }); audit('Deleted ' + title, b.dataset.d); reload().catch(fail); } catch (e) { fail(e); }
   });
 }
 
@@ -225,6 +380,43 @@ async function challenges() {
   editor('challenges', CF, list, challenges, { title: 'challenge' });
 }
 
+async function downloadSoundRows(rows, statusEl) {
+  const usable = rows.filter((s) => s.audioPath);
+  if (!usable.length) throw new Error('There are no uploaded audio files to download.');
+  const files = [];
+  let done = 0;
+  for (const s of usable) {
+    const signed = await sign('sounds', [s.audioPath]);
+    const url = signed[s.audioPath];
+    if (!url) continue;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Could not read ${s.title}.`);
+    const ext = (s.audioPath.split('.').pop() || 'mp3').toLowerCase();
+    files.push({ name: `${safeFilename(s.title || 'sound')}_${safeFilename(s.number ?? s.id.slice(0, 8))}.${ext}`, data: new Uint8Array(await resp.arrayBuffer()), date: s.createdAt });
+    done++;
+    if (statusEl) statusEl.textContent = `Preparing audio · ${done}/${usable.length}`;
+  }
+  const csv = ['id,number,title,artist,category,permission_status,duration,audio_path'];
+  for (const s of usable) csv.push([s.id,s.number,s.title,s.artist,s.category,s.permissionStatus,s.duration,s.audioPath].map((v)=>`"${String(v??'').replace(/"/g,'""')}"`).join(','));
+  files.push({ name: 'audio-metadata.csv', data: new TextEncoder().encode(csv.join('\n')) });
+  save(zipStore(files), `JOTA-JOTI-audio-${new Date().toISOString().slice(0,10)}.zip`);
+  audit('Downloaded audio archive', '', `${done} audio files`);
+  if (statusEl) statusEl.textContent = `Downloaded ${done} audio files`;
+}
+
+async function deleteSoundRows(rows) {
+  const usable = rows.filter(Boolean);
+  for (let start = 0; start < usable.length; start += 50) {
+    const batch = usable.slice(start, start + 50);
+    const paths = batch.flatMap((s) => [s.audioPath, s.artworkPath]).filter(Boolean);
+    for (let k = 0; k < paths.length; k += 100) {
+      await sb(`${U}/storage/v1/object/sounds`, { method: 'DELETE', body: { prefixes: paths.slice(k, k + 100) } });
+    }
+    await sb(`sounds?id=in.(${batch.map((s) => s.id).join(',')})`, { method: 'DELETE' });
+  }
+  audit('Deleted sounds', '', `${usable.length} audio records`);
+}
+
 async function sounds() {
   const rows = await sb('sounds?select=*&order=number.nullslast,title');
   const list = rows.map(camel);
@@ -233,20 +425,28 @@ async function sounds() {
     ['attribution', 'Credit line'], ['licenceInfo', 'Licence'], ['source', 'Where it came from'],
     ['permissionStatus', 'Permission', 'select', ['unconfirmed', 'owned', 'licensed', 'royalty-free', 'public-domain', 'permission-granted']],
     ['duration', 'Length in seconds', 'number'], ['active', 'Available to participants', 'check']];
-  pane(`<div class="row"><button class="btn pri" id="new">Add sound</button><span class="muted">Only upload audio you have permission to use. MP3 or M4A, under about 10 MB.</span></div>
+  pane(`<section class="admin-hero"><div><span class="eyebrow">JOTA-JOTI AUDIO</span><h2>Sound library</h2><p class="muted">Add organiser MP3s for participants to use in videos. Keep copyright and permission records with every track.</p></div><div class="hero-stat"><b>${list.length}</b><span>sounds</span></div></section>
+  <div class="admin-actions"><button class="btn pri" id="new">Add audio</button><button class="btn" id="dl-sounds">Download all audio</button><button class="btn danger" id="del-sounds">Delete all audio</button><span class="small muted" id="sound-bulk-status" aria-live="polite"></span></div>
   <div class="card"><table><tr><th>No.</th><th>Title</th><th>Category</th><th>File</th><th></th></tr>
   ${list.map((s) => `<tr><td>${s.number ?? ''}</td><td>${esc(s.title)}${s.active ? '' : ' <span class="tag">hidden</span>'}<br><span class="muted">${esc(s.permissionStatus)}</span></td><td>${esc(s.category)}</td>
   <td>${urls[s.audioPath] ? `<audio controls preload="none" src="${urls[s.audioPath]}" style="height:30px"></audio>` : '<span class="err">no audio</span>'}</td>
   <td><button data-e="${s.id}">Edit</button> <button class="bad" data-d="${s.id}">Delete</button></td></tr>`).join('') || '<tr><td colspan=5 class="muted">No sounds yet.</td></tr>'}</table></div><dialog id="dlg"></dialog>`);
+  $('#dl-sounds').onclick = async () => { const st = $('#sound-bulk-status'); st.textContent = 'Preparing…'; try { await downloadSoundRows(list, st); } catch (e) { st.textContent = ''; fail(e); } };
+  $('#del-sounds').onclick = async () => { if (!list.length) return alert('There are no sounds to delete.'); if (!confirm(`Delete ALL ${list.length} sounds and their MP3/artwork files from Supabase? This cannot be undone. Participant videos already uploaded are not changed.`)) return; const st = $('#sound-bulk-status'); st.textContent='Deleting…'; try { await deleteSoundRows(list); await sounds(); } catch (e) { st.textContent=''; fail(e); } };
   editor('sounds', SF, list, sounds, {
     title: 'sound',
-    html: () => '<label>Audio file (leave empty to keep the current one)</label><input type="file" id="au" accept="audio/*">',
+    html: () => '<label>MP3 audio file (optional when editing)</label><input type="file" id="au" accept=".mp3,audio/mpeg"><p class="small muted">MP3 files only. Use audio you are authorised to use.</p>',
     after: async (dlg, id) => {
       const f = dlg.querySelector('#au').files[0]; if (!f) return;
-      const ext = (f.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'mp3';
-      const path = `${id}.${ext}`;
+      if (!/\.mp3$/i.test(f.name) && f.type !== 'audio/mpeg') throw new Error('Please choose an MP3 file.');
+      if (f.size > 25 * 1024 * 1024) throw new Error('That MP3 is over 25 MB.');
+      const path = `${id}.mp3`;
       await sb(`${U}/storage/v1/object/sounds/${path}`, { method: 'POST', body: f, raw: true, headers: { 'content-type': f.type || 'audio/mpeg', 'x-upsert': 'true' } });
       await sb(`sounds?id=eq.${id}`, { method: 'PATCH', body: { audio_path: path, size: f.size } });
+    },
+    beforeDelete: async (item) => {
+      const paths = [item.audioPath, item.artworkPath].filter(Boolean);
+      if (paths.length) await sb(`${U}/storage/v1/object/sounds`, { method: 'DELETE', body: { prefixes: paths } });
     },
   });
 }

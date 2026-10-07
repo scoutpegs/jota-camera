@@ -194,18 +194,19 @@ export class TileMap {
     const img = this.markerImage(m.imageUrl);
     ctx.save();
     this.roundedRectPath(ctx, x + 1, y + 1, w - 2, h - 2, 11);
-    ctx.fillStyle = '#171219'; ctx.fill();
-    ctx.lineWidth = 2.5; ctx.strokeStyle = '#9b62d3'; ctx.stroke();
+    // Light-theme memory marker: looks like a small physical photo card rather than a dark map pin.
+    ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#6b3c94'; ctx.stroke();
     ctx.save(); this.roundedRectPath(ctx, x + 4, y + 4, w - 8, h - 16, 8); ctx.clip();
     if (img && img.complete && img.naturalWidth) ctx.drawImage(img, x + 4, y + 4, w - 8, h - 16);
-    else { ctx.fillStyle = '#2b2232'; ctx.fillRect(x + 4, y + 4, w - 8, h - 16); ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '700 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText(m.mediaType === 'video' ? '▶' : '•', s.x, y + 30); }
+    else { ctx.fillStyle = '#eef1f4'; ctx.fillRect(x + 4, y + 4, w - 8, h - 16); ctx.fillStyle = '#6b3c94'; ctx.font = '800 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText(m.mediaType === 'video' ? '▶' : '•', s.x, y + 30); }
     ctx.restore();
-    ctx.fillStyle = '#fff'; ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#45515a'; ctx.font = '800 9px system-ui, sans-serif'; ctx.textAlign = 'center';
     ctx.fillText(m.mediaType === 'video' ? 'VIDEO' : 'PHOTO', s.x, y + h - 5);
     if (m.count > 1) {
       const bx = x + w - 2, by = y + 1;
-      ctx.fillStyle = '#9b62d3'; ctx.beginPath(); ctx.arc(bx, by, 11, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = '700 11px system-ui'; ctx.fillText(String(m.count), bx, by + 4);
+      ctx.fillStyle = '#6b3c94'; ctx.beginPath(); ctx.arc(bx, by, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = '800 11px system-ui'; ctx.fillText(String(m.count), bx, by + 4);
     }
     ctx.restore();
   }
@@ -233,7 +234,7 @@ export class TileMap {
       t = { img: new Image(), ok: false, failed: false };
       t.img.crossOrigin = 'anonymous';
       t.img.onload = () => { t.ok = true; this.invalidate(); };
-      t.img.onerror = () => { t.failed = true; };
+      t.img.onerror = () => { t.failed = true; this.invalidate(); };
       t.img.src = tileUrlFor(this.tileUrl, z, x, y);
       this.tiles.set(key, t);
       if (this.tiles.size > 400) this.tiles.delete(this.tiles.keys().next().value);
@@ -268,7 +269,6 @@ export class TileMap {
     // That keeps the map useful during first load, weak signal and offline use.
     this.drawOfflineFallback(ctx, w, h);
     const tz = clamp(Math.round(this.zoom), this.minZoom, this.maxZoom), scale = 2 ** (this.zoom - tz);
-    let gotTile = false;
     const c = project(this.lat, this.lon, tz), n = 2 ** tz;
     const x0 = c.x - w / 2 / scale, y0 = c.y - h / 2 / scale;
     ctx.strokeStyle = '#2d2d36'; ctx.lineWidth = 1;
@@ -277,7 +277,7 @@ export class TileMap {
         if (ty < 0 || ty >= n) continue;
         const sx = (tx * TILE - x0) * scale, sy = (ty * TILE - y0) * scale, size = TILE * scale + 0.6;
         const t = this.tile(tz, ((tx % n) + n) % n, ty);
-        if (t.ok) { ctx.drawImage(t.img, sx, sy, size, size); gotTile = true; } else ctx.strokeRect(sx + .5, sy + .5, size - 1, size - 1);
+        if (t.ok) ctx.drawImage(t.img, sx, sy, size, size);
       }
     }
     // you are here
