@@ -1,38 +1,45 @@
-# JOTA-JOTI Camera Button Audit
+# JOTA-JOTI button/path audit
 
-Generated as part of the final flat-root production review.
+This is a static event-hook audit of the production build. It checks that key interactive controls have an implementation hook; it is not a replacement for physical-device interaction testing.
 
-## Participant UI
+## Camera
+- Shutter → `onShutter`
+- Photo/video mode buttons → `setMode`
+- Challenge chip → `chooseChallenge`
+- Clear challenge X → clears `app.ctx.challenge`
+- Sound button → `chooseSound`
+- Flip → `cam.flip()`
+- Torch → `cam.setTorch()`
+- Zoom 0.5/1/2 → `setPresetZoom()`
+- Zoom slider → `cam.setZoom()`
+- My posts/gallery button → `app.go('posts')`
 
-All buttons created through the shared `el('button', ...)` helper include a direct click handler, with the onboarding name-step Continue button intentionally wired through a normal `addEventListener('click', ...)` after creation. Navigation buttons are wired in `main.js`.
+## Review
+- Discard X → `discard(sub.id)` + camera route
+- Retake → `leave()`
+- Next → submit route
+- Location retry → `patchSub()`
+- Challenge chip → `patchSub()`
 
-- `main.js`: 2 created, 2 direct click handlers, 2 additional property/listener assignments
-- `camera-ui.js`: 14 created, 14 direct click handlers
-- `map-view.js`: 15 created, 15 direct click handlers
-- `challenges.js`: 5 created, 5 direct click handlers
-- `posts.js`: 10 created, 10 direct click handlers
-- `settings.js`: 7 created, 8 handler declarations (includes the hidden test-mode/version interactions)
-- `sounds.js`: 12 created, 12 direct click handlers
-- `review.js`: 8 created, 8 direct click handlers
-- `onboard.js`: 2 created, 1 direct handler + 1 click listener
-- `install.js`: 2 created, 2 direct click handlers
-- `admin.js`: runtime HTML buttons are wired through explicit `.onclick` assignments and event handlers
+## Admin map
+- Add map pin → opens pin editor
+- Click map → writes latitude/longitude
+- Drag map pin → writes latitude/longitude
+- Use my location → writes current coordinates
+- Save pin → Supabase write + Apps Script mirror
+- Clear → resets editor
+- Pull from Google Sheet → Apps Script `syncSheet`
+- Push pins to Sheet → Apps Script `syncPinsToSheet`
+- Edit pin → opens editor
+- Delete pin → Supabase delete + Sheet mirror
 
-Total dynamically created participant buttons audited: **77**. No dynamically created participant button was found without a click handler or an intentional later listener assignment.
+## Admin bulk media/audio
+- Select page / all results → updates selection sets
+- Approve / Reject → bulk review actions
+- Download selected / all → archive paths
+- Delete selected / all → protected delete paths
+- Add audio → audio editor/upload flow
+- Download all audio → archive path
+- Delete all audio → protected bulk delete path
 
-## Static HTML
-
-- `index.html`: 1 button, settings handler supplied by `main.js`
-- `admin.html`: 1 button, logout handler supplied by `admin.js`
-
-## Admin actions audited
-
-Media: filter, select page, select all, approve, reject, download selected, download all, delete selected, delete all, CSV export, detail actions.
-
-Sounds: add audio, preview, edit, delete, download all audio, delete all audio.
-
-Challenges: create, edit, start photo, start video, view on map.
-
-Map: open sheet, open Google Maps, sync Sheet to Supabase, map controls.
-
-Settings / backup / health: navigation and action controls are explicitly wired.
+No runtime folders are required for these handlers; all referenced modules are in the GitHub repository root.

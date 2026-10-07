@@ -49,3 +49,7 @@ dialog{width:min(900px,96vw);max-height:90vh;padding:18px;border:1px solid var(-
 @media(max-width:900px){.filter-grid{grid-template-columns:1fr 1fr}.filter-grid input{grid-column:1/-1}}
 @media(max-width:600px){main{padding:14px 12px 24px}header{padding:8px 12px}nav{top:55px}.admin-hero{align-items:flex-start}.admin-hero h2{font-size:21px}.hero-stat{min-width:70px}.admin-actions .btn{flex:1 0 calc(50% - 7px)}.media-grid,.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.tile-body{padding:8px}.tile-meta{font-size:11px}.tile-body time{font-size:9px}}
 @media(max-width:390px){.media-grid,.grid{grid-template-columns:1fr}.admin-actions .btn{flex-basis:100%}.filter-grid{grid-template-columns:1fr}}
+
+.admin-pin-map{height:360px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#eef2ef;margin:10px 0 14px}.admin-pin-map canvas{width:100%;height:100%;display:block}.pin-form{display:grid;gap:10px}.pin-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.pin-form label{display:grid;gap:5px;font-size:12px;font-weight:700;color:#53616a}.pin-form .check-row{display:flex;align-items:center;gap:7px;align-content:center;min-height:42px}.pin-form .check-row input{width:18px;min-height:18px}.pin-form textarea{min-height:84px;resize:vertical}.admin-pin-map+form .row{margin-top:2px}
+@media(max-width:800px){.pin-form-grid{grid-template-columns:1fr 1fr}.admin-pin-map{height:300px}}
+@media(max-width:520px){.pin-form-grid{grid-template-columns:1fr}.admin-pin-map{height:280px}}

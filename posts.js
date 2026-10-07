@@ -75,22 +75,14 @@ export function mountPosts(root, app) {
   }
 
   function cluster(list) {
-    // Screen-space grid bucketing keeps large memory collections responsive.
-    // Only nearby cells are checked, avoiding the old O(n²) scan.
-    const cellSize = 48;
-    const cells = new Map();
     const result = [];
     for (const item of list) {
       if (!hasCoords(item)) continue;
       const x = map ? map.latLonToScreen(Number(item.latitude), Number(item.longitude)) : { x: 0, y: 0 };
-      const gx = Math.floor(x.x / cellSize), gy = Math.floor(x.y / cellSize);
       let hit = null;
-      for (let ox = -1; ox <= 1 && !hit; ox++) for (let oy = -1; oy <= 1 && !hit; oy++) {
-        const bucket = cells.get(`${gx + ox}:${gy + oy}`);
-        if (!bucket) continue;
-        for (const c of bucket) {
-          if (Math.hypot(c.screen.x - x.x, c.screen.y - x.y) < 46) { hit = c; break; }
-        }
+      for (const c of result) {
+        const d = Math.hypot(c.screen.x - x.x, c.screen.y - x.y);
+        if (d < 46) { hit = c; break; }
       }
       if (hit) {
         hit.items.push(item);
@@ -98,12 +90,7 @@ export function mountPosts(root, app) {
         hit.lat = hit.items.reduce((a, v) => a + Number(v.latitude), 0) / n;
         hit.lon = hit.items.reduce((a, v) => a + Number(v.longitude), 0) / n;
         hit.screen = map.latLonToScreen(hit.lat, hit.lon);
-      } else {
-        const c = { lat: Number(item.latitude), lon: Number(item.longitude), items: [item], screen: x };
-        result.push(c);
-        const key = `${gx}:${gy}`;
-        const bucket = cells.get(key) || []; bucket.push(c); cells.set(key, bucket);
-      }
+      } else result.push({ lat: Number(item.latitude), lon: Number(item.longitude), items: [item], screen: x });
     }
     return result.map((c) => ({
       id: 'memory:' + c.items.map((x) => x.id).join(','), lat: c.lat, lon: c.lon, kind: 'memory', count: c.items.length,
@@ -111,21 +98,15 @@ export function mountPosts(root, app) {
     }));
   }
 
-
-  async function mapThumbs(clusters) {
-    const out = new Array(clusters.length); let next = 0;
-    const worker = async () => { while (next < clusters.length) { const i = next++; out[i] = clusters[i].imageUrl || await urlForThumb(clusters[i].items[0]); } };
-    await Promise.all(Array.from({ length: Math.min(6, clusters.length) }, worker));
-    return out;
-  }
-
   async function syncMap() {
     if (!map) return;
     const geo = current.filter(hasCoords);
     const markers = [];
     const clusters = cluster(geo);
-    const thumbs = await mapThumbs(clusters);
-    clusters.forEach((c, i) => { c.imageUrl = thumbs[i] || ''; markers.push(c); });
+    for (const c of clusters) {
+      const img = c.imageUrl || await urlForThumb(c.items[0]);
+      c.imageUrl = img; markers.push(c);
+    }
     map.setMarkers(markers);
   }
 
@@ -227,14 +208,6 @@ export function mountPosts(root, app) {
   }
 
   let ui = null;
-
-    async function loadRailThumbs(list) {
-      const out = new Array(list.length); let next = 0;
-      const worker = async () => { while (next < list.length) { const i = next++; out[i] = await urlForThumb(list[i]); } };
-      await Promise.all(Array.from({ length: Math.min(6, list.length) }, worker));
-      return out;
-    }
-
   async function render() {
     if (!active) return;
     if (!ui) ui = renderShell();
@@ -249,14 +222,12 @@ export function mountPosts(root, app) {
     ui.count.textContent = `${merged.length} ${merged.length === 1 ? 'capture' : 'captures'}`;
     ui.stats.textContent = `${photoCount} photos · ${videoCount} videos · ${mapped.length} on the map${localWaiting ? ` · ${localWaiting} waiting` : ''}`;
     ui.rail.replaceChildren();
-    const visible = merged.slice(0, 36);
-    const thumbs = await loadRailThumbs(visible);
-    visible.forEach((s, i) => {
-      const thumb = thumbs[i];
+    for (const s of merged.slice(0, 36)) {
+      const thumb = await urlForThumb(s);
       ui.rail.append(el('button', { class: 'memory-card', onclick: () => openMemory([s]), title: s.challengeName || (s.mediaType === 'video' ? 'Video' : 'Photo') },
         el('div', { class: 'memory-card-art' }, thumb ? el('img', { src: thumb, alt: '' }) : el('span', {}, s.mediaType === 'video' ? '▶' : '•'), s.mediaType === 'video' ? el('span', { class: 'memory-card-kind' }, 'VIDEO') : null),
         el('div', { class: 'memory-card-copy' }, el('b', {}, s.challengeName || (s.mediaType === 'video' ? 'Video' : 'Photo')), el('span', {}, hasCoords(s) ? niceDate(s.capturedAt) : 'No location'))));
-    });
+    }
     if (!merged.length) ui.rail.append(el('div', { class: 'memory-empty' },
       el('b', {}, 'Your memory map is ready'),
       el('p', { class: 'small muted' }, 'Take a photo or video and, when location is available, it will be placed on this map where you captured it.'),

@@ -21,7 +21,7 @@ export function mountMap(root, app) {
   root.replaceChildren();
   const wrap = el('div', { class: 'map-wrap' });
   const banner = el('div', { class: 'map-banner', hidden: true });
-  const place = el('div', { class: 'map-place' }, el('b', {}, 'Boulder · Kalgoorlie-Boulder'), el('span', {}, 'Western Australia'));
+  const place = el('div', { class: 'map-place' }, el('b', {}, 'Kalgoorlie · Goldfields-Esperance'), el('span', {}, 'Western Australia'));
   const listBox = el('div', { class: 'page', hidden: true });
   const emptyMap = el('div', { class: 'map-empty', hidden: true });
   const tools = el('div', { class: 'map-toolbar' },
@@ -31,7 +31,7 @@ export function mountMap(root, app) {
     el('button', { class: 'tool', id: 'map-list', 'aria-label': 'Show locations as a list', 'aria-pressed': 'false', onclick: toggleList }, icon('posts')));
   const external = el('button', { class: 'map-external', hidden: true, onclick: () => { if (cfg.mapUrl) window.open(cfg.mapUrl, '_blank', 'noopener,noreferrer'); } }, icon('map'), el('span', {}, 'Open Google Maps'));
   root.append(wrap, banner, place, external, tools, emptyMap, listBox);
-  let map = null, pins = [], challenges = [], done = new Set(), off = null, showingList = false;
+  let map = null, pins = [], challenges = [], done = new Set(), off = null, showingList = false, initialViewSet = false;
 
   function toggleList() {
     showingList = !showingList;
@@ -158,16 +158,23 @@ export function mountMap(root, app) {
       banner.hidden = !(p.offline || navigator.onLine === false);
       let sourceLabel = '';
       if (p.sheetUrl) { try { sourceLabel = ' · ' + new URL(p.sheetUrl).hostname; } catch {} }
-      banner.textContent = p.offline ? (pins.length ? 'Offline. The last saved Google Sheet locations are being used.' : 'Offline. The Boulder base map is still available. Add locations when you are back online.') : `Locations loaded from the organiser Google Sheet${sourceLabel}.`;
+      banner.textContent = p.offline ? (pins.length ? 'Offline. The last saved Google Sheet locations are being used.' : 'Offline. The Kalgoorlie base map is still available. Add locations when you are back online.') : `Locations loaded from the organiser Google Sheet${sourceLabel}.`;
       const challengeCount = challenges.length;
       emptyMap.hidden = !!(pins.length || challengeCount);
       emptyMap.innerHTML = '';
       if (!emptyMap.hidden) {
-        emptyMap.append(el('b', {}, 'Boulder map ready'), el('p', { class: 'small' }, 'The base map is available now. Locations and challenges from the organiser Google Sheet will appear here automatically.'), el('button', { class: 'btn small', onclick: () => app.go('camera') }, 'Open camera'));
+        emptyMap.append(el('b', {}, 'Kalgoorlie map ready'), el('p', { class: 'small' }, 'The base map is available now. Locations and challenges from the organiser Google Sheet will appear here automatically.'), el('button', { class: 'btn small', onclick: () => app.go('camera') }, 'Open camera'));
       }
       paint();
       const focusPoints = [...pins.map((x) => ({ lat: x.latitude, lon: x.longitude })), ...challenges.filter((c) => c.location).map((c) => ({ lat: Number(c.location.latitude), lon: Number(c.location.longitude) }))];
-      if (app.ctx.mapFocus) { map.setView(Number(app.ctx.mapFocus.lat), Number(app.ctx.mapFocus.lon), Math.max(map.zoom, 16)); app.ctx.mapFocus = null; } else if (focusPoints.length) map.fitTo(focusPoints);
+      if (app.ctx.mapFocus) {
+        map.setView(Number(app.ctx.mapFocus.lat), Number(app.ctx.mapFocus.lon), Math.max(map.zoom, 16));
+        app.ctx.mapFocus = null;
+      } else if (!initialViewSet) {
+        if (focusPoints.length) map.fitTo(focusPoints);
+        else map.setView(Number(cfg.mapCenterLat), Number(cfg.mapCenterLon), Number(cfg.mapZoom));
+        initialViewSet = true;
+      }
       if (showingList) drawList();
       map.resize();
     },

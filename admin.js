@@ -1,4 +1,5 @@
 import { SUPABASE_URL as U, SUPABASE_KEY as K, GOOGLE_BACKUP_URL as BU, GOOGLE_BACKUP_KEY as BK } from './backend.js';
+import { TileMap } from './tilemap.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
@@ -211,9 +212,9 @@ async function downloadAllRows(rows, statusEl) {
   const driveOnly = normalized.filter((r) => r.storageProvider === 'DRIVE' && r.backupUrl && !r.mediaKey);
   if (!uploaded.length && !driveOnly.length) throw new Error('There are no uploaded media files to download.');
   const totalBytes = uploaded.reduce((n, r) => n + Number(r.size || 0), 0);
-  const partLimit = 180 * 1024 * 1024;
-  const plannedParts = Math.max(1, Math.ceil(Math.max(totalBytes, 1) / partLimit));
-  let files = [], partRows = [], partBytes = 0, done = 0, partNo = 0;
+  const partLimit = 480 * 1024 * 1024;
+  const parts = [];
+  let files = [], partRows = [], partBytes = 0, done = 0;
   const makeManifest = (rs) => {
     const lines = ['id,participant,media_type,captured_at,storage_provider,backup_status,backup_url'];
     for (const r of rs) lines.push([r.id, r.participantName, r.mediaType, r.capturedAt, r.storageProvider, r.backupStatus, r.backupUrl].map((v) => String(v ?? '').replace(/"/g, '""')).map((v) => `"${v}"`).join(','));
@@ -222,14 +223,10 @@ async function downloadAllRows(rows, statusEl) {
   const flush = async () => {
     if (!files.length && !partRows.length) return;
     files.push({ name: 'metadata.csv', data: makeManifest(partRows) });
-    partNo++;
-    const blob = zipStore(files);
-    const suffix = plannedParts > 1 ? `-part-${partNo}-of-${plannedParts}` : '';
-    save(blob, `JOTA-JOTI-media-${new Date().toISOString().slice(0,10)}${suffix}.zip`);
+    parts.push({ files, rows: partRows });
     files = []; partRows = []; partBytes = 0;
-    await new Promise((r) => setTimeout(r, 150));
   };
-  if (totalBytes > partLimit && statusEl) statusEl.textContent = `Large download · split into ${plannedParts} smaller ZIPs`;
+  if (totalBytes > partLimit && statusEl) statusEl.textContent = `Large download · will split into smaller ZIP files`;
   for (const r of uploaded) {
     const signed = await sign('media', [r.mediaKey]);
     const url = signed[r.mediaKey];
@@ -251,12 +248,20 @@ async function downloadAllRows(rows, statusEl) {
     files.push({ name: 'Drive-backup-links.txt', data: new TextEncoder().encode(lines.join('\n')) });
   }
   await flush();
-  audit('Downloaded media archive', '', `${rows.length} submissions${partNo > 1 ? ` · ${partNo} ZIP parts` : ''}`);
+  const totalParts = parts.length;
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const blob = zipStore(part.files);
+    const suffix = totalParts > 1 ? `-part-${i + 1}-of-${totalParts}` : '';
+    save(blob, `JOTA-JOTI-media-${new Date().toISOString().slice(0,10)}${suffix}.zip`);
+    if (statusEl) statusEl.textContent = totalParts > 1 ? `Downloaded ZIP ${i + 1} of ${totalParts}` : `Downloaded ${done} files`;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  audit('Downloaded media archive', '', `${rows.length} submissions${totalParts > 1 ? ` · ${totalParts} ZIP parts` : ''}`);
   if (statusEl) statusEl.textContent = driveOnly.length
-    ? `Downloaded ${done} files · ${driveOnly.length} Drive-only links included${partNo > 1 ? ` · ${partNo} ZIPs` : ''}`
-    : `Downloaded ${done} files${partNo > 1 ? ` · ${partNo} ZIPs` : ''}`;
+    ? `Downloaded ${done} files · ${driveOnly.length} Drive-only links included${totalParts > 1 ? ` · ${totalParts} ZIPs` : ''}`
+    : `Downloaded ${done} files${totalParts > 1 ? ` · ${totalParts} ZIPs` : ''}`;
 }
-
 async function deleteRowsBatched(rows) {
   for (let start = 0; start < rows.length; start += 50) {
     const batch = rows.slice(start, start + 50);
@@ -451,25 +456,152 @@ async function sounds() {
   });
 }
 
+function appsScriptJsonp(op, extra = {}, timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    if (!BU || !BK) return reject(new Error('Google Apps Script is not configured.'));
+    const cb = `__jjPin_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    let done = false;
+    const cleanup = () => { done = true; clearTimeout(timer); delete window[cb]; script.remove(); };
+    const finish = (fn, value) => { if (done) return; cleanup(); fn(value); };
+    window[cb] = (payload) => payload && payload.ok !== false ? finish(resolve, payload) : finish(reject, new Error(payload?.error || 'Google Apps Script request failed.'));
+    script.onerror = () => finish(reject, new Error('Could not reach Google Apps Script.'));
+    const params = new URLSearchParams({ op, key: BK, callback: cb, _: String(Date.now()), ...extra });
+    script.src = `${BU}?${params.toString()}`;
+    const timer = setTimeout(() => finish(reject, new Error('Google Apps Script timed out. The Supabase change was saved, but Sheet sync needs to be run again.')), timeout);
+    document.head.append(script);
+  });
+}
+
+let adminPinMap = null;
+let editingPin = null;
+
+function renderPinEditor(list) {
+  const wrap = document.createElement('div');
+  wrap.id = 'pin-editor';
+  wrap.innerHTML = `<div class="card"><div class="admin-hero"><div><div class="eyebrow">MAP EDITOR</div><h2>Add or edit a pin</h2><p class="muted">Tap the Kalgoorlie map to place a pin, drag an existing pin to move it, or enter coordinates. Saving updates Supabase and then mirrors the location back into the Google Sheet.</p></div></div><div id="admin-pin-map" class="admin-pin-map"></div><form id="pin-form" class="pin-form"><div class="pin-form-grid"><label>Name<input id="pin-name" required maxlength="120"></label><label>Category<input id="pin-category" maxlength="80"></label><label>Icon<input id="pin-icon" maxlength="20" placeholder="📍"></label><label>Points<input id="pin-points" type="number" min="0" step="1" value="0"></label><label>Latitude<input id="pin-lat" type="number" step="any" required></label><label>Longitude<input id="pin-lon" type="number" step="any" required></label><label>Challenge numbers<input id="pin-challenges" placeholder="1, 4, 12"></label><label class="check-row"><input id="pin-photo" type="checkbox"> Photo required</label><label class="check-row"><input id="pin-video" type="checkbox" checked> Video allowed</label><label class="check-row"><input id="pin-active" type="checkbox" checked> Active</label></div><label>Description<textarea id="pin-description" maxlength="500"></textarea></label><label>Instructions<textarea id="pin-instructions" maxlength="500"></textarea></label><div class="row"><button type="submit" class="btn pri">Save pin</button><button type="button" id="pin-cancel" class="btn">Clear</button><button type="button" id="pin-location" class="btn">Use my location</button><span id="pin-save-status" class="muted"></span></div></form></div>`;
+  return wrap;
+}
+
+function openPinEditor(list = []) {
+  const holder = document.createElement('div');
+  const shell = renderPinEditor(list); holder.append(shell);
+  const existingMarkers = () => list.filter((p) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude))).map((p) => ({
+    id: String(p.id), lat: Number(p.latitude), lon: Number(p.longitude), label: p.name, kind: 'location', hitRadius: 24, draggable: true, color: '#5a2c84', pin: p,
+  }));
+  const setEditorMarker = (lat, lon) => {
+    const markers = existingMarkers();
+    markers.push({ id: 'editor', lat: Number(lat), lon: Number(lon), label: $('#pin-name', holder).value || 'New pin', kind: 'location', hitRadius: 28, draggable: true, color: '#f4b400' });
+    adminPinMap?.setMarkers?.(markers);
+  };
+  const loadItem = (item) => {
+    if (!item) return;
+    editingPin = item;
+    $('#pin-name', holder).value = item.name || '';
+    $('#pin-description', holder).value = item.description || '';
+    $('#pin-instructions', holder).value = item.instructions || '';
+    $('#pin-category', holder).value = item.category || '';
+    $('#pin-icon', holder).value = item.icon || '';
+    $('#pin-points', holder).value = item.points ?? 0;
+    $('#pin-lat', holder).value = Number(item.latitude).toFixed(6);
+    $('#pin-lon', holder).value = Number(item.longitude).toFixed(6);
+    $('#pin-challenges', holder).value = (item.challengeNumbers || []).join(', ');
+    $('#pin-photo', holder).checked = !!item.photoRequired;
+    $('#pin-video', holder).checked = item.videoAllowed !== false;
+    $('#pin-active', holder).checked = item.active !== false;
+    setEditorMarker(item.latitude, item.longitude);
+    holder.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const initMap = () => {
+    const mapWrap = holder.querySelector('#admin-pin-map');
+    if (!mapWrap) return;
+    adminPinMap?.destroy?.();
+    adminPinMap = new TileMap(mapWrap, {
+      tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', lat: -30.7489, lon: 121.4658, zoom: 14,
+      label: 'Kalgoorlie pin placement map. Click anywhere to place or move the pin.',
+      onMapClick: (lat, lon) => { $('#pin-lat', holder).value = lat.toFixed(6); $('#pin-lon', holder).value = lon.toFixed(6); setEditorMarker(lat, lon); },
+      onMarkerClick: (m) => { if (m.id === 'editor') return; const item = list.find((x) => String(x.id) === String(m.id)); if (item) loadItem(item); },
+      onMarkerDrag: (m) => {
+        const lat = Number(m.lat), lon = Number(m.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        if (m.id === 'editor') { $('#pin-lat', holder).value = lat.toFixed(6); $('#pin-lon', holder).value = lon.toFixed(6); return; }
+        const item = list.find((x) => String(x.id) === String(m.id));
+        if (item) { loadItem(item); $('#pin-lat', holder).value = lat.toFixed(6); $('#pin-lon', holder).value = lon.toFixed(6); setEditorMarker(lat, lon); }
+      },
+    });
+    adminPinMap.setMarkers(existingMarkers());
+  };
+  const clear = () => { editingPin = null; $('#pin-form', holder).reset(); $('#pin-video', holder).checked = true; $('#pin-active', holder).checked = true; $('#pin-points', holder).value = '0'; adminPinMap?.setMarkers(existingMarkers()); $('#pin-save-status', holder).textContent = ''; };
+  holder.querySelector('#pin-cancel').onclick = clear;
+  holder.querySelector('#pin-location').onclick = async () => { try { const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 })); const lat = pos.coords.latitude, lon = pos.coords.longitude; $('#pin-lat', holder).value = lat.toFixed(6); $('#pin-lon', holder).value = lon.toFixed(6); adminPinMap?.setView(lat, lon, Math.max(adminPinMap.zoom, 16)); setEditorMarker(lat, lon); } catch { alert('Location could not be read. Enter the coordinates or tap the map instead.'); } };
+  holder.querySelector('#pin-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const status = $('#pin-save-status', holder); status.classList.remove('err'); status.textContent = 'Saving…';
+    const data = { id: editingPin?.id || (crypto.randomUUID ? crypto.randomUUID() : `pin-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`), name: $('#pin-name', holder).value.trim(), description: $('#pin-description', holder).value.trim(), instructions: $('#pin-instructions', holder).value.trim(), latitude: Number($('#pin-lat', holder).value), longitude: Number($('#pin-lon', holder).value), category: $('#pin-category', holder).value.trim(), icon: $('#pin-icon', holder).value.trim(), points: Math.max(0, Math.round(Number($('#pin-points', holder).value || 0))), photo_required: $('#pin-photo', holder).checked, video_allowed: $('#pin-video', holder).checked, active: $('#pin-active', holder).checked, challenge_numbers: $('#pin-challenges', holder).value.split(/[;,]+/).map((x) => x.trim()).filter(Boolean).slice(0, 50) };
+    try {
+      if (!data.name || !Number.isFinite(data.latitude) || !Number.isFinite(data.longitude) || data.latitude < -90 || data.latitude > 90 || data.longitude < -180 || data.longitude > 180) throw new Error('Enter a name and valid coordinates.');
+      if (editingPin) await sb(`locations?id=eq.${encodeURIComponent(editingPin.id)}`, { method: 'PATCH', body: data });
+      else await sb('locations', { method: 'POST', body: data, headers: { prefer: 'return=minimal' } });
+      try {
+        const synced = await appsScriptJsonp('syncPinsToSheet');
+        status.textContent = `Saved to Supabase and Google Sheets${synced?.locations != null ? ` · ${synced.locations} pins` : ''}.`;
+      } catch {
+        status.classList.add('err');
+        status.textContent = 'Saved to Supabase. Google Sheets will update when Apps Script is available.';
+      }
+      audit((editingPin ? 'Edited' : 'Added') + ' map pin', data.id, data.name);
+      editingPin = null;
+      await map();
+    } catch (err) { status.textContent = ''; fail(err); }
+  };
+  return { holder, setEditorMarker, clear, initMap, loadItem };
+}
+
 async function map() {
-  const sheet = await loadSheetConfigAdmin().catch(() => null);
-  const list = (sheet && Array.isArray(sheet.locations) ? sheet.locations : []).map((p) => ({
+  // Admin edits are written to Supabase first, so use that as the interactive
+  // editor's current state. Google Sheets remains the event-management source
+  // and can be pulled into Supabase explicitly with the button below.
+  const [sheet, supaLocations] = await Promise.all([
+    loadSheetConfigAdmin().catch(() => null),
+    sb('locations?select=id,name,description,instructions,latitude,longitude,category,icon,points,photo_required,video_allowed,active,challenge_numbers&order=name').catch(() => []),
+  ]);
+  const rawLocations = Array.isArray(supaLocations) && supaLocations.length
+    ? supaLocations
+    : (sheet && Array.isArray(sheet.locations) ? sheet.locations : []);
+  const list = rawLocations.map((p) => ({
     id: String(p.id), name: String(p.name || ''), description: String(p.description || ''), instructions: String(p.instructions || ''),
     latitude: Number(p.latitude), longitude: Number(p.longitude), category: String(p.category || ''), icon: String(p.icon || ''),
-    points: Number(p.points || 0), photoRequired: !!p.photoRequired, videoAllowed: p.videoAllowed !== false, active: p.active !== false,
-    challengeNumbers: Array.isArray(p.challengeNumbers) ? p.challengeNumbers : [],
+    points: Number(p.points ?? 0), photoRequired: p.photoRequired !== undefined ? !!p.photoRequired : !!p.photo_required, videoAllowed: p.videoAllowed !== undefined ? p.videoAllowed !== false : p.video_allowed !== false, active: p.active !== undefined ? p.active !== false : p.active !== false,
+    challengeNumbers: Array.isArray(p.challengeNumbers) ? p.challengeNumbers : (Array.isArray(p.challenge_numbers) ? p.challenge_numbers : []),
   })).filter((p) => p.id && p.name && Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
-  const sheetUrl = sheet && sheet.sheetUrl ? sheet.sheetUrl : '';
-  const syncUrl = `${BU}?op=syncSheet&key=${encodeURIComponent(BK)}`;
-  const mapUrl = sheet && sheet.settings && sheet.settings.mapUrl ? String(sheet.settings.mapUrl) : '';
-  pane(`<div class="card"><h2>Map pins</h2><p>Google Sheets is the source of truth for the map URL and location list. Edit locations in the <b>Locations</b> sheet, not here.</p>
-    <div class="row">${sheetUrl ? `<a class="btn pri" href="${esc(sheetUrl)}" target="_blank" rel="noopener">Open Google Sheet</a>` : ''}
-    ${mapUrl ? `<a class="btn" href="${esc(mapUrl)}" target="_blank" rel="noopener">Open Google Maps</a>` : ''}
-    ${BU ? `<a class="btn" href="${esc(syncUrl)}" target="_blank" rel="noopener">Sync Sheet → Supabase</a>` : ''}</div>
-    <p class="muted">${sheet ? `${list.length} valid locations loaded from the Sheet${sheet.updatedAt ? ` · updated ${fmt(sheet.updatedAt)}` : ''}.` : 'The Google Sheet could not be read. Check the Apps Script deployment and its web-app URL.'}</p></div>
-    <div class="card"><table><tr><th>Pin</th><th>Position</th><th>Challenges</th><th>Status</th></tr>${list.map((p) => `<tr><td>${esc(p.icon ? p.icon+' ' : '')}${esc(p.name)}</td><td>${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}</td><td>${esc(p.challengeNumbers.join(', ')) || '<span class="muted">none</span>'}</td><td>${p.active ? 'Active' : '<span class="tag">hidden</span>'}</td></tr>`).join('') || '<tr><td colspan=4 class="muted">No valid locations yet. Add rows to the Locations sheet.</td></tr>'}</table></div>
-    <div class="card"><h3>Locations sheet columns</h3><p class="muted">ID, Name, Description, Instructions, Latitude, Longitude, Category, Icon, Points, PhotoRequired, VideoAllowed, Active, ChallengeNumbers</p><p class="muted">For ChallengeNumbers, use numbers separated by commas, for example <code>1, 4, 12</code>.</p></div>`);
+  const sheetUrl = sheet?.sheetUrl || '';
+  const mapUrl = sheet?.settings?.mapUrl ? String(sheet.settings.mapUrl) : 'https://www.google.com/maps/search/?api=1&query=Kalgoorlie%2C%20Western%20Australia';
+  pane(`<div class="admin-hero"><div><div class="eyebrow">EVENT MAP</div><h2>Map pins</h2><p class="muted">Add pins here or manage them in the Locations sheet. Both views are kept in sync.</p></div><div class="hero-stat"><b>${list.length}</b><span>locations</span></div></div>
+  <div id="pin-editor-slot"></div>
+  <div class="card"><div class="admin-actions"><button class="btn pri" id="add-pin">Add map pin</button>${BU ? `<button class="btn" id="pull-sheet">Pull from Google Sheet</button><button class="btn" id="push-sheet">Push pins to Sheet</button>` : ''}${sheetUrl ? `<a class="btn" href="${esc(sheetUrl)}" target="_blank" rel="noopener">Open Google Sheet</a>` : ''}<a class="btn" href="${esc(mapUrl)}" target="_blank" rel="noopener">Open Google Maps</a><span class="small muted" id="map-sync-status" aria-live="polite"></span></div><p class="muted">${supaLocations?.length ? `${list.length} map pins currently stored in Supabase${sheet ? ' · Google Sheet available for sync.' : ' · Google Sheet not currently reachable.'}` : sheet ? `${list.length} valid locations loaded from the organiser Sheet${sheet.updatedAt ? ` · updated ${fmt(sheet.updatedAt)}` : ''}.` : 'No locations are stored yet. Add a pin here, or pull the organiser Sheet when Apps Script is available.'}</p></div>
+  <div class="card"><table><tr><th>Pin</th><th>Position</th><th>Challenges</th><th>Status</th><th></th></tr>${list.map((p) => `<tr><td>${esc(p.icon ? p.icon+' ' : '')}${esc(p.name)}</td><td>${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}</td><td>${esc(p.challengeNumbers.join(', ')) || '<span class="muted">none</span>'}</td><td>${p.active ? 'Active' : '<span class="tag">hidden</span>'}</td><td><button data-edit-pin="${esc(p.id)}">Edit</button> <button class="bad" data-delete-pin="${esc(p.id)}">Delete</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No locations yet. Add your first pin.</td></tr>'}</table></div>
+  <div class="card"><h3>Google Sheet columns</h3><p class="muted">ID, Name, Description, Instructions, Latitude, Longitude, Category, Icon, Points, PhotoRequired, VideoAllowed, Active, ChallengeNumbers</p><p class="muted">For ChallengeNumbers, enter values like <code>1, 4, 12</code>. A challenge linked to a location appears on the participant map.</p></div>`);
+
+  $('#pull-sheet')?.addEventListener('click', async () => { const st = $('#map-sync-status'); st.textContent = 'Pulling Google Sheet locations…'; try { const r = await appsScriptJsonp('syncSheet'); st.textContent = `Pulled ${r.locations || 0} locations into Supabase. Refreshing…`; await map(); } catch (e) { st.textContent = ''; fail(e); } });
+  $('#push-sheet')?.addEventListener('click', async () => { const st = $('#map-sync-status'); st.textContent = 'Pushing pins to Google Sheets…'; try { const r = await appsScriptJsonp('syncPinsToSheet'); st.textContent = `Google Sheets updated with ${r.locations || list.length} locations.`; } catch (e) { st.textContent = ''; fail(e); } });
+
+  const openEditor = async (item = null) => {
+    const built = openPinEditor(list);
+    const slot = $('#pin-editor-slot'); slot.replaceChildren(...built.holder.children);
+    const holder = slot.firstElementChild; editingPin = item;
+    built.initMap();
+    if (item) built.loadItem(item);
+    holder.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  $('#add-pin').onclick = () => openEditor();
+  document.querySelectorAll('[data-edit-pin]').forEach((b) => b.onclick = () => openEditor(list.find((x) => x.id === b.dataset.editPin)));
+  document.querySelectorAll('[data-delete-pin]').forEach((b) => b.onclick = async () => {
+    const item = list.find((x) => x.id === b.dataset.deletePin); if (!item) return;
+    if (!confirm(`Delete the map pin “${item.name}”? This also removes it from the Google Sheet on sync.`)) return;
+    try { await sb(`locations?id=eq.${encodeURIComponent(item.id)}`, { method: 'DELETE' }); await appsScriptJsonp('syncPinsToSheet'); audit('Deleted map pin', item.id, item.name); await map(); } catch (e) { fail(e); }
+  });
 }
+
 
 async function people() {
   const [ps, subs] = await Promise.all([sb('participants?select=*&order=name'), sb('submissions?select=participant_id,media_type&limit=10000')]);

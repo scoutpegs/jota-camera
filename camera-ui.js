@@ -31,9 +31,10 @@ export function mountCamera(root, app) {
   const zoomBtn = el('button', { class: 'tool', id: 'zoom-btn', 'aria-label': 'Zoom', hidden: true, onclick: () => { zoomBar.hidden = !zoomBar.hidden; } }, icon('zoom'));
   const zoomRange = el('input', { type: 'range', 'aria-label': 'Zoom level', oninput: (e) => cam.setZoom(Number(e.target.value)) });
   const zoomBar = el('div', { class: 'zoom-bar', hidden: true }, zoomRange);
+  const zoom05 = el('button', { class: 'zoom-preset', type: 'button', hidden: true, onclick: () => setPresetZoom(.5) }, '0.5×');
   const zoom1 = el('button', { class: 'zoom-preset active', type: 'button', onclick: () => setPresetZoom(1) }, '1×');
   const zoom2 = el('button', { class: 'zoom-preset', type: 'button', onclick: () => setPresetZoom(2) }, '2×');
-  const zoomPresets = el('div', { class: 'zoom-presets', hidden: true, role: 'group', 'aria-label': 'Quick zoom' }, zoom1, zoom2);
+  const zoomPresets = el('div', { class: 'zoom-presets', hidden: true, role: 'group', 'aria-label': 'Quick zoom' }, zoom05, zoom1, zoom2);
   const readout = el('div', { class: 'readout', id: 'readout', 'aria-live': 'off' }, el('i', { class: 'rd' }), el('span', { id: 'rec-time' }, '00:00'));
   const flashEl = el('div', { class: 'flash' });
 
@@ -96,23 +97,44 @@ export function mountCamera(root, app) {
   }
   function applyCaps() {
     torchBtn.hidden = !cam.caps.torch; torchBtn.setAttribute('aria-pressed', 'false');
-    zoomBtn.hidden = !cam.caps.zoom;
-    zoomPresets.hidden = !cam.caps.zoom;
-    zoom2.hidden = !cam.caps.zoom || Number(cam.caps.zoom.max) < 2;
+    zoomBtn.hidden = !cam.caps.zoom && !cam.caps.ultraWide;
+    zoomPresets.hidden = !cam.caps.zoom && !cam.caps.ultraWide;
     if (cam.caps.zoom) { const z = cam.caps.zoom; Object.assign(zoomRange, { min: z.min, max: z.max, step: z.step, value: z.value }); }
+    zoom05.hidden = !cam.caps.ultraWide;
+    zoom2.hidden = !(cam.caps.zoom && Number(cam.caps.zoom.max) >= 2);
     zoomBar.hidden = true;
+    zoom1.classList.toggle('active', cam.lensMode !== 'ultra');
+    zoom05.classList.toggle('active', cam.lensMode === 'ultra');
     refresh();
   }
 
-  function setPresetZoom(multiplier) {
-    const z = cam.caps.zoom;
-    if (!z) return;
-    const base = Math.max(1, Number(z.min) || 1);
-    const target = Math.min(z.max, Math.max(z.min, base * multiplier));
-    zoomRange.value = target;
-    cam.setZoom(target);
-    zoom1.classList.toggle('active', multiplier === 1);
-    zoom2.classList.toggle('active', multiplier === 2);
+  async function setPresetZoom(multiplier) {
+    const hasSeparateUltra = cam.lenses?.some((x) => x.kind === 'back' && x.ultraWide);
+    // 1× and 2× mean the main rear camera when a separate ultra-wide lens is
+    // active. This matches the way a phone camera normally changes lenses.
+    if (multiplier >= 1 && cam.lensMode === 'ultra' && hasSeparateUltra) {
+      try { await cam.start({ facing: 'environment' }); } catch { toast('The main camera could not be selected.', 'bad'); return; }
+    }
+    if (multiplier === .5) {
+      try {
+        const ok = await cam.useUltraWide();
+        if (!ok) { toast('0.5× is not available on this camera.', ''); return; }
+      } catch { toast('The ultra-wide camera could not be selected.', 'bad'); return; }
+    } else if (cam.caps.zoom) {
+      const z = cam.caps.zoom;
+      const base = Math.max(1, Number(z.min) || 1);
+      const target = Math.min(z.max, Math.max(z.min, base * multiplier));
+      zoomRange.value = target;
+      await cam.setZoom(target);
+    } else {
+      toast('That zoom level is not available on this camera.', '');
+      return;
+    }
+    zoom05.classList.toggle('active', cam.lensMode === 'ultra' || multiplier === .5);
+    zoom1.classList.toggle('active', multiplier === 1 && cam.lensMode !== 'ultra');
+    zoom2.classList.toggle('active', multiplier === 2 && cam.lensMode !== 'ultra');
+    applyCaps();
+    zoomBar.hidden = false;
   }
 
   /* ---------- the permission gate ---------- */

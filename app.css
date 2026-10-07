@@ -58,8 +58,7 @@ input, textarea, select { font: inherit; color: var(--text); }
 .status { font-size: 12px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 6px; min-height: 44px; }
 .status .dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf50; }
 .status.offline .dot { background: var(--amber); }
-.status.busy .dot { background: var(--brand); animation: pulse 1.2s infinite; }
-@keyframes pulse { 50% { opacity: .3; } }
+.status.busy .dot { background: var(--brand); }
 
 /* ---------- views ---------- */
 #views { flex: 1; min-height: 0; position: relative; }
@@ -84,7 +83,6 @@ p { line-height: 1.5; margin: 0 0 12px; }
 #nav button svg { width: 23px; height: 23px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 #nav button[aria-current="page"] { color: var(--brand); }
 #nav button[aria-current="page"]::before { content: ""; position: absolute; top: 0; width: 28px; height: 3px; border-radius: 0 0 3px 3px; background: var(--brand); }
-#nav .letterA { font-family: var(--display); font-weight: 700; font-size: 21px; line-height: 23px; height: 23px; }
 #nav .badge { position: absolute; top: 6px; right: calc(50% - 22px); min-width: 17px; height: 17px; border-radius: 9px; padding: 0 4px;
   background: var(--brand); color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
 
@@ -152,7 +150,7 @@ textarea.input { min-height: 88px; resize: vertical; }
 .tool[aria-pressed="true"] { background: var(--amber); } .tool[aria-pressed="true"] svg { stroke: #000; }
 .readout { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 700; background: rgba(0,0,0,.6); color: #fff; padding: 5px 12px; border-radius: 8px; display: none; align-items: center; gap: 8px; margin-top: 56px; }
 .readout.on { display: flex; }
-.readout .rd { width: 9px; height: 9px; border-radius: 50%; background: var(--rec); animation: pulse 1s infinite; }
+.readout .rd { width: 9px; height: 9px; border-radius: 50%; background: var(--rec); }
 .cam-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 calc(18px + var(--safe-r)) 8px calc(18px + var(--safe-l)); background: rgba(255,255,255,.97); color: var(--text); border-top: 1px solid rgba(39,49,58,.10); }
 .shutter-row { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; }
 .side-btn { width: 68px; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12px; font-weight: 600; color: #fff; }
@@ -904,7 +902,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 
 /* Final camera ergonomics: the live preview is the product. Keep global navigation
    out of the way while the camera is open, just like a dedicated camera screen. */
-body[data-view="camera"] #nav{display:none!important}
+body[data-view="camera"] #nav{display:flex!important}
 body[data-view="camera"] #views{height:100svh;min-height:100svh}
 @supports(height:100dvh){body[data-view="camera"] #views{height:100dvh;min-height:100dvh}}
 body[data-view="camera"] .cam-top{padding-top:0!important}
@@ -943,178 +941,398 @@ input[type=file][hidden]{display:none!important}
 .map-range-warning{color:#8b5b00!important;margin:7px 0 4px}
 .map-range-ok{color:#2c7a52!important;margin:7px 0 4px}
 
+
 /* ================================================================
-   FINAL PRODUCTION UI PASS
-   Light application chrome, restrained JOTA-JOTI identity, deliberate spacing.
-   The live viewfinder remains black because it is a camera surface.
+   FINAL CAMERA APP REDESIGN
+   Clean light UI, large preview, bottom navigation always visible.
    ================================================================ */
 :root{
-  --bg:#f7f8fa;
-  --panel:#ffffff;
-  --panel-2:#faf7fc;
-  --line:#e1e5e9;
-  --line-strong:#cfd5db;
-  --text:#252d33;
-  --muted:#65717a;
-  --brand:#5a2c84;
-  --brand-hi:#482267;
-  --brand-soft:#f2edf7;
-  --amber:#e4aa00;
-  --ok:#277952;
-  --danger:#c34a43;
-  --nav-h:62px;
-  color-scheme:light;
+  --camera-nav-h:68px;
+  --camera-control-h:118px;
 }
-html,body{background:var(--bg)!important;color:var(--text)!important}
-body{font-size:15px;letter-spacing:0}
-button{transition:background-color .14s ease,border-color .14s ease,color .14s ease,transform .08s ease,opacity .14s ease}
-button:active{transform:translateY(1px)}
-.btn{border-radius:10px;min-height:48px;font-size:15px;letter-spacing:0;font-family:var(--body)}
-.btn.ghost{border-color:#c8bdd2}
-.btn.small{min-height:40px;border-radius:9px;font-size:14px}
-.card{border-radius:12px;box-shadow:0 1px 2px rgba(34,43,50,.035)!important}
-.page{max-width:760px;padding-top:30px;padding-bottom:34px}
-.page h1{font-size:26px;letter-spacing:-.025em}
-.page h2{font-size:16px;letter-spacing:-.01em;margin-top:26px}
-.input{border-radius:9px;border-color:#d6dce1;box-shadow:none}
-.input:focus{box-shadow:0 0 0 3px rgba(90,44,132,.12)}
+.status.busy .dot,
+.readout .rd{animation:none!important}
 
-/* App chrome */
-#topbar{height:calc(58px + var(--safe-t));background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 8px rgba(30,38,44,.035)}
-#topbar .title{font-size:15px;letter-spacing:.01em}
-#topbar .logo{width:32px;height:32px;border-radius:8px}
-#nav{height:calc(var(--nav-h) + var(--safe-b));background:#fff;border-top:1px solid var(--line);box-shadow:0 -1px 8px rgba(30,38,44,.04)}
-#nav button{font-size:10px;gap:4px;letter-spacing:.01em}
-#nav button svg{width:21px;height:21px}
-#nav button[aria-current="page"]::before{width:24px;height:2px}
-
-/* Onboarding: one clear action, no generic card pile. */
-.onboard{max-width:500px;justify-content:center;padding:clamp(30px,7vh,70px) calc(24px + var(--safe-r)) calc(28px + var(--safe-b)) calc(24px + var(--safe-l))}
-.onboard .logos{margin-bottom:28px}
-.onboard .logos img{height:58px;max-width:132px;box-shadow:none;border:1px solid var(--line)}
-.onboard h1{font-size:31px;line-height:1.08;letter-spacing:-.035em;margin-bottom:9px}
-.onboard p{color:var(--muted);max-width:42ch}
-.onboard .field{margin-top:18px}
-.onboard .btn.block{margin-top:8px}
-.steps li{padding:11px 0;border-bottom:1px solid var(--line)}
-.steps li::before{width:27px;height:27px;font-size:13px;background:var(--brand)}
-
-/* Full camera surface */
-body[data-view="camera"] #topbar,body[data-view="camera"] #nav{display:none!important}
+/* The camera stays a real full-frame surface, with the app navigation at the
+   physical bottom. The camera controls sit immediately above it. */
+body[data-view="camera"] #topbar{display:none!important}
 body[data-view="camera"] #views{height:100dvh!important;min-height:100dvh!important}
+body[data-view="camera"] #nav{
+  display:flex!important;
+  position:absolute!important;
+  left:0!important;
+  right:0!important;
+  bottom:0!important;
+  transform:none!important;
+  width:100%!important;
+  height:calc(var(--camera-nav-h) + var(--safe-b))!important;
+  padding:0 var(--safe-r) var(--safe-b) var(--safe-l)!important;
+  border:0!important;
+  border-top:1px solid rgba(31,42,50,.10)!important;
+  border-radius:0!important;
+  background:#fff!important;
+  box-shadow:0 -3px 16px rgba(31,42,50,.09)!important;
+  overflow:hidden!important;
+  z-index:50!important;
+}
+body[data-view="camera"] #nav button{
+  min-width:0!important;
+  color:#6d7880!important;
+  font-size:10px!important;
+  font-weight:700!important;
+  gap:4px!important;
+}
+body[data-view="camera"] #nav button svg{width:22px!important;height:22px!important}
+body[data-view="camera"] #nav button[aria-current="page"]{color:var(--brand)!important}
+body[data-view="camera"] #nav button[aria-current="page"]::before{
+  display:none!important;
+}
+body[data-view="camera"] #nav button[aria-current="page"]::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  bottom:5px;
+  width:22px;
+  height:3px;
+  transform:translateX(-50%);
+  background:var(--brand);
+  border-radius:4px 4px 0 0;
+}
+body[data-view="camera"] #nav .badge{top:6px;right:calc(50% - 20px)}
+
 #v-camera{background:#000!important}
-.cam-stage{inset:0;min-height:100%;background:#000!important}
-.cam-stage video{object-fit:cover;object-position:center center;will-change:transform}
-.vf{inset:12px;opacity:.12}
-.cam-top{z-index:12}
-.camera-topline{padding-top:calc(12px + var(--safe-t))!important}
-.camera-brand{min-height:42px;padding:5px 10px 5px 5px;border-radius:12px;background:rgba(255,255,255,.97);border:1px solid rgba(30,39,46,.10);box-shadow:0 2px 10px rgba(16,21,25,.13)}
-.camera-brand img{width:31px;height:31px;border-radius:8px}
-.camera-brand-copy b{font-size:13px;line-height:1.05;color:#273238}
-.camera-brand-copy span{font-size:9px;color:#66727a}
-.camera-top-actions{gap:7px}
-.camera-top-actions .tool{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.97)!important;border:1px solid rgba(30,39,46,.10)!important;color:#273238!important;box-shadow:0 2px 10px rgba(16,21,25,.10)!important}
-.camera-top-actions .tool svg{stroke:#273238!important}
-.camera-challenge-row{padding-top:8px}
-.camera-challenge-row .chip{min-height:38px;border-radius:10px;background:rgba(255,255,255,.97)!important;color:#2c353b!important;border:1px solid rgba(30,39,46,.10)!important;box-shadow:0 2px 9px rgba(16,21,25,.09)!important}
-.camera-challenge-row .chip svg{stroke:var(--brand)!important}
-.camera-challenge-row .chip.x{width:34px}
-.readout{z-index:13;top:calc(74px + var(--safe-t));margin-top:0;background:#fff!important;color:#283138!important;border:1px solid rgba(30,39,46,.10)!important;box-shadow:0 2px 8px rgba(16,21,25,.12)!important}
-.zoom-bar{z-index:14;right:calc(10px + var(--safe-r));top:calc(62px + var(--safe-t));bottom:auto;left:auto;transform:none;width:min(170px,45vw);border-radius:10px;background:#fff!important;border:1px solid var(--line)!important;box-shadow:0 2px 10px rgba(16,21,25,.12)!important;padding:9px 10px}
-.zoom-presets{z-index:15;top:calc(108px + var(--safe-t));right:calc(10px + var(--safe-r));border-radius:9px;background:#fff!important;border:1px solid var(--line)!important;box-shadow:0 2px 8px rgba(16,21,25,.10)!important}
-.zoom-preset{min-width:40px;height:30px;color:#59656d;border-radius:7px}
-.zoom-preset.active{background:var(--brand)!important;color:#fff!important}
-.cam-bottom{z-index:12;left:0;right:0;bottom:0!important;width:auto;transform:none;padding:8px calc(14px + var(--safe-r)) calc(12px + var(--safe-b)) calc(14px + var(--safe-l));background:#fff!important;border-top:1px solid rgba(30,39,46,.10)!important;box-shadow:0 -2px 10px rgba(16,21,25,.08)!important}
-.camera-mode-row{margin:0 0 1px}
-.cam-bottom .modes{gap:26px;padding:0}
-.cam-bottom .modes button{min-height:28px;min-width:72px;font-size:10px;letter-spacing:.13em;color:#748089!important}
-.cam-bottom .modes button[aria-pressed="true"]{color:var(--brand)!important}
-.cam-bottom .modes button[aria-pressed="true"]::after{height:2px}
-.cam-bottom .shutter-row{padding-top:4px;max-width:580px;margin:0 auto}
-.cam-bottom .side-btn{width:64px;height:50px;min-height:50px;color:#3d474e!important;border:0!important;background:transparent!important}
-.cam-bottom .side-btn svg{width:22px;height:22px;stroke:#3d474e!important}
-.cam-bottom .side-btn span{font-size:9px;color:#627078!important}
-.cam-bottom .shutter{width:84px;height:84px}
-.cam-bottom .shutter::before{border:3px solid var(--brand)}
-.cam-bottom .shutter::after{background:var(--amber)}
-.cam-bottom .shutter .core{width:66px;height:66px;background:#fff!important;box-shadow:inset 0 0 0 3px #d9dde1!important}
-.cam-bottom .shutter.video .core{background:#e65049!important;box-shadow:inset 0 0 0 3px #bd3b35!important}
-.cam-bottom .shutter svg.ring{width:90px;height:90px;inset:-3px}
-.camera-recording .cam-bottom{padding-bottom:calc(14px + var(--safe-b))}
-.cam-gate{z-index:20;background:#f6f7f8!important;color:var(--text)!important}
-
-/* Review / submit */
-#v-review{background:#101113!important}
-.review-bar{background:#fff!important;color:var(--text)!important;border-top:1px solid var(--line)!important;box-shadow:0 -2px 12px rgba(0,0,0,.18)}
-.review-bar .pill{background:var(--brand-soft);color:var(--brand)}
-.review-bar .btn.ghost{background:#fff;color:var(--brand);border-color:#c9bfd2}
-
-/* Map */
-.map-banner,.map-external,.map-toolbar .tool,.map-place{border:1px solid var(--line)!important;box-shadow:0 2px 9px rgba(26,34,40,.10)!important;background:#fff!important}
-.map-place{border-radius:10px;padding:8px 10px}
-.map-banner{border-radius:10px}
-.map-external{border-radius:10px;min-height:42px}
-.map-toolbar{gap:6px}
-.map-toolbar .tool{width:42px;height:42px;border-radius:10px}
-.map-empty{border:1px solid var(--line);box-shadow:0 3px 12px rgba(26,34,40,.10);border-radius:12px}
-.map-list-head{margin-bottom:11px}
-.map-location-card{border-radius:11px;padding:13px}
-
-/* My posts memory map */
-.memory-map-shell{background:#edf0ec!important}
-.memory-map-top{top:calc(12px + var(--safe-t));left:calc(12px + var(--safe-l));right:calc(12px + var(--safe-r))}
-.memory-map-title{padding:9px 12px;background:rgba(255,255,255,.97)!important;border:1px solid var(--line)!important;border-radius:11px!important;box-shadow:0 2px 9px rgba(26,34,40,.10)!important}
-.memory-map-title h1{font-size:18px!important;color:var(--text)!important}
-.memory-map-title .eyebrow{color:var(--brand)!important}
-.memory-map-icon,.memory-control{background:#fff!important;color:var(--text)!important;border:1px solid var(--line)!important;box-shadow:0 2px 8px rgba(26,34,40,.10)!important;border-radius:10px!important}
-.memory-map-icon{width:42px;height:42px}
-.memory-control{width:40px;height:40px}
-.memory-map-controls{top:calc(70px + var(--safe-t));right:calc(12px + var(--safe-r));gap:6px}
-.memory-panel{background:#fff!important;border-top:1px solid var(--line)!important;box-shadow:0 -2px 12px rgba(26,34,40,.09)!important;padding-top:22px}
-.memory-panel-handle{background:#cbd1d5!important;width:34px;height:3px;margin-bottom:10px}
-.memory-panel-head h2{color:var(--text)!important;font-size:18px!important}
-.memory-panel-head p,#memory-stats-text{color:var(--muted)!important;font-size:11px!important}
-.memory-rail{gap:9px}
-.memory-card{color:var(--text)!important;flex-basis:108px}
-.memory-card-art{width:108px;height:132px;border-radius:10px!important;background:#eef1f3!important;border:1px solid var(--line)!important;box-shadow:0 1px 4px rgba(26,34,40,.07)!important}
-.memory-card-kind{background:#fff!important;color:var(--brand)!important;border:1px solid var(--line);border-radius:5px}
-.memory-card-copy{padding-top:6px}
-.memory-card-copy b{font-size:11px}
-.memory-card-copy span{color:var(--muted)!important;font-size:9px}
-.memory-empty{color:var(--text)!important}
-.memory-no-location{color:var(--text)!important}
-.memory-list-row{color:var(--text)!important;border-top-color:var(--line)!important}
-
-/* Sheets: make them read like platform panels rather than generic dialogs. */
-.scrim{background:rgba(24,22,28,.26)!important}
-.sheet{width:min(560px,calc(100vw - 20px));border-radius:16px 16px 0 0;box-shadow:0 -8px 30px rgba(25,32,38,.14)!important}
-.sheet .sheet-head{border-bottom:1px solid var(--line)}
-
-/* Accessibility and compact screens */
-@media (max-width:420px){
-  .onboard{padding-left:20px;padding-right:20px}
-  .onboard h1{font-size:28px}
-  .camera-brand-copy span{max-width:38vw}
-  .camera-top-actions{gap:5px}
-  .camera-top-actions .tool{width:39px;height:39px}
-  .cam-bottom{padding-left:10px;padding-right:10px}
-  .cam-bottom .shutter{width:78px;height:78px}
-  .cam-bottom .shutter .core{width:62px;height:62px}
-  .cam-bottom .side-btn{width:58px}
+body[data-view="camera"] .cam-stage{inset:0!important;background:#000!important}
+body[data-view="camera"] .cam-stage video{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
 }
-@media (max-height:640px) and (orientation:portrait){
-  .cam-bottom .shutter{width:72px;height:72px}.cam-bottom .shutter .core{width:57px;height:57px}
+
+/* Camera header: compact brand left, vertical controls right. */
+body[data-view="camera"] .cam-top{z-index:24!important;pointer-events:none!important}
+body[data-view="camera"] .camera-topline{
+  padding-top:calc(11px + var(--safe-t))!important;
+  padding-left:calc(12px + var(--safe-l))!important;
+  padding-right:calc(12px + var(--safe-r))!important;
+  align-items:flex-start!important;
 }
-@media (orientation:landscape) and (max-height:560px){
-  .cam-bottom{padding-top:4px;padding-bottom:calc(5px + var(--safe-b))}
-  .cam-bottom .shutter{width:60px;height:60px}.cam-bottom .shutter .core{width:48px;height:48px}
-  .cam-bottom .side-btn{height:38px;min-height:38px}
-  .camera-topline{padding-top:calc(6px + var(--safe-t))!important}
+body[data-view="camera"] .camera-brand{
+  min-height:44px!important;
+  padding:5px 11px 5px 5px!important;
+  border-radius:13px!important;
+  background:rgba(255,255,255,.95)!important;
+  border:1px solid rgba(31,42,50,.10)!important;
+  box-shadow:0 3px 12px rgba(20,28,33,.12)!important;
 }
-@media (min-width:768px){
-  .cam-bottom .shutter{width:88px;height:88px}.cam-bottom .shutter .core{width:70px;height:70px}
-  .onboard{padding-top:60px}
+body[data-view="camera"] .camera-brand img{width:32px!important;height:32px!important;border-radius:8px!important}
+body[data-view="camera"] .camera-brand-copy b{font-size:13px!important}
+body[data-view="camera"] .camera-brand-copy span{font-size:9px!important;max-width:42vw!important}
+body[data-view="camera"] .camera-top-actions{
+  flex-direction:column!important;
+  gap:7px!important;
+  align-items:flex-end!important;
 }
-@media (min-width:1024px){
-  .onboard{max-width:560px}
+body[data-view="camera"] .camera-top-actions .tool{
+  width:44px!important;
+  height:44px!important;
+  border-radius:50%!important;
+  background:rgba(255,255,255,.95)!important;
+  color:#28353d!important;
+  border:1px solid rgba(31,42,50,.10)!important;
+  box-shadow:0 3px 10px rgba(20,28,33,.12)!important;
 }
+body[data-view="camera"] .camera-top-actions .tool svg{stroke:#28353d!important}
+body[data-view="camera"] .camera-challenge-row{
+  padding-top:10px!important;
+  padding-left:calc(12px + var(--safe-l))!important;
+  padding-right:calc(12px + var(--safe-r))!important;
+}
+body[data-view="camera"] .camera-challenge-row .chip{
+  min-height:38px!important;
+  border-radius:12px!important;
+  background:rgba(255,255,255,.95)!important;
+  color:#28353d!important;
+  border:1px solid rgba(31,42,50,.10)!important;
+  box-shadow:0 3px 10px rgba(20,28,33,.11)!important;
+}
+body[data-view="camera"] .camera-challenge-row .chip svg{stroke:var(--brand)!important}
+
+/* Mode + shutter deck. It no longer becomes a large floating card, so most
+   of the phone stays available for the live view. */
+body[data-view="camera"] .cam-bottom{
+  left:0!important;
+  right:0!important;
+  bottom:calc(var(--camera-nav-h) + var(--safe-b))!important;
+  width:100%!important;
+  transform:none!important;
+  padding:0 18px 12px!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  color:#243139!important;
+  z-index:30!important;
+  pointer-events:none!important;
+}
+body[data-view="camera"] .camera-mode-row{margin:0 auto 2px!important;pointer-events:auto!important}
+body[data-view="camera"] .modes{
+  gap:20px!important;
+  padding:0!important;
+}
+body[data-view="camera"] .modes button{
+  min-width:72px!important;
+  min-height:28px!important;
+  padding:0 6px!important;
+  color:#707b83!important;
+  font-size:11px!important;
+  letter-spacing:.10em!important;
+}
+body[data-view="camera"] .modes button[aria-pressed="true"]{color:var(--brand)!important}
+body[data-view="camera"] .modes button[aria-pressed="true"]::after{height:2px!important}
+body[data-view="camera"] .shutter-row{
+  pointer-events:auto!important;
+  width:min(540px,100%)!important;
+  margin:0 auto!important;
+  padding-top:2px!important;
+  display:grid!important;
+  grid-template-columns:1fr auto 1fr!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+body[data-view="camera"] .cam-bottom .side-btn{
+  width:52px!important;
+  height:52px!important;
+  min-height:52px!important;
+  border-radius:50%!important;
+  justify-self:center!important;
+  background:#fff!important;
+  color:#2c3940!important;
+  border:1px solid rgba(31,42,50,.12)!important;
+  box-shadow:0 2px 10px rgba(20,28,33,.11)!important;
+}
+body[data-view="camera"] .cam-bottom .side-btn svg{width:22px!important;height:22px!important;stroke:#2c3940!important}
+body[data-view="camera"] .cam-bottom .side-btn span{font-size:8px!important;color:#526069!important}
+body[data-view="camera"] .shutter{
+  width:88px!important;
+  height:88px!important;
+  justify-self:center!important;
+}
+body[data-view="camera"] .shutter::before{border:4px solid #fff!important;box-shadow:0 0 0 2px rgba(42,50,56,.10)!important}
+body[data-view="camera"] .shutter::after{top:-8px!important;background:var(--amber)!important}
+body[data-view="camera"] .shutter .core{
+  width:72px!important;
+  height:72px!important;
+  background:#fff!important;
+  box-shadow:inset 0 0 0 3px #d7dce0, 0 2px 4px rgba(20,28,33,.09)!important;
+}
+body[data-view="camera"] .shutter.video .core{background:#e64b45!important;box-shadow:inset 0 0 0 3px #b63d38!important}
+body[data-view="camera"] .shutter.recording .core{width:34px!important;height:34px!important;border-radius:8px!important}
+body[data-view="camera"] .readout{
+  top:auto!important;
+  left:50%!important;
+  right:auto!important;
+  bottom:calc(var(--camera-nav-h) + 128px + var(--safe-b))!important;
+  transform:translateX(-50%)!important;
+  background:rgba(255,255,255,.94)!important;
+  border:1px solid rgba(31,42,50,.10)!important;
+  box-shadow:0 2px 9px rgba(20,28,33,.10)!important;
+}
+body[data-view="camera"] .readout .rd{background:var(--rec)!important}
+body[data-view="camera"] .zoom-presets{
+  top:auto!important;
+  bottom:calc(var(--camera-nav-h) + 132px + var(--safe-b))!important;
+  right:50%!important;
+  transform:translateX(50%)!important;
+  background:#fff!important;
+  border:1px solid rgba(31,42,50,.10)!important;
+  box-shadow:0 3px 10px rgba(20,28,33,.11)!important;
+  border-radius:12px!important;
+}
+body[data-view="camera"] .zoom-presets .zoom-preset.active{background:var(--brand)!important}
+body[data-view="camera"] .zoom-bar{
+  top:calc(124px + var(--safe-t))!important;
+  right:calc(62px + var(--safe-r))!important;
+  bottom:auto!important;
+}
+body[data-view="camera"] .vf{opacity:.10!important}
+body[data-view="camera"] .flash.go{animation:cameraFlash .18s ease-out!important}
+@keyframes cameraFlash{from{opacity:.82}to{opacity:0}}
+
+/* Camera gate: still light and centred. */
+body[data-view="camera"] .cam-gate{
+  background:#f6f7f8!important;
+  color:#243139!important;
+  padding:30px 20px calc(30px + var(--safe-b))!important;
+}
+
+/* Keep nav visible even while recording. This avoids the camera changing its
+   control geometry halfway through a capture. */
+body.camera-recording #nav{display:flex!important}
+body.camera-recording .cam-bottom{bottom:calc(var(--camera-nav-h) + var(--safe-b))!important}
+body.camera-recording .camera-mode-row{opacity:.45!important}
+body.camera-recording .camera-mode-row button{pointer-events:none!important}
+
+/* Clean mobile sizing: the preview gets as much vertical space as the device
+   allows, while controls remain comfortably tappable. */
+@media(max-width:420px){
+  :root{--camera-nav-h:64px}
+  body[data-view="camera"] .camera-top-actions .tool{width:42px!important;height:42px!important}
+  body[data-view="camera"] .camera-brand{max-width:68vw!important}
+  body[data-view="camera"] .cam-bottom{padding-left:10px!important;padding-right:10px!important;padding-bottom:8px!important}
+  body[data-view="camera"] .shutter{width:80px!important;height:80px!important}
+  body[data-view="camera"] .shutter .core{width:66px!important;height:66px!important}
+  body[data-view="camera"] .cam-bottom .side-btn{width:48px!important;height:48px!important;min-height:48px!important}
+}
+@media(max-height:680px) and (orientation:portrait){
+  :root{--camera-nav-h:60px}
+  body[data-view="camera"] .camera-topline{padding-top:calc(7px + var(--safe-t))!important}
+  body[data-view="camera"] .camera-top-actions{gap:5px!important}
+  body[data-view="camera"] .camera-top-actions .tool{width:38px!important;height:38px!important}
+  body[data-view="camera"] .camera-brand{min-height:40px!important}
+  body[data-view="camera"] .camera-brand img{width:28px!important;height:28px!important}
+  body[data-view="camera"] .cam-bottom{padding-bottom:4px!important}
+  body[data-view="camera"] .shutter{width:68px!important;height:68px!important}
+  body[data-view="camera"] .shutter .core{width:54px!important;height:54px!important}
+  body[data-view="camera"] .cam-bottom .side-btn{width:42px!important;height:42px!important;min-height:42px!important}
+  body[data-view="camera"] .modes button{min-height:24px!important;font-size:10px!important}
+}
+@media(orientation:landscape){
+  body[data-view="camera"] #nav{height:calc(54px + var(--safe-b))!important}
+  body[data-view="camera"] .cam-bottom{bottom:calc(54px + var(--safe-b))!important;padding-bottom:6px!important}
+  body[data-view="camera"] .shutter{width:64px!important;height:64px!important}
+  body[data-view="camera"] .shutter .core{width:52px!important;height:52px!important}
+  body[data-view="camera"] .cam-bottom .side-btn{width:42px!important;height:42px!important;min-height:42px!important}
+  body[data-view="camera"] .camera-challenge-row{padding-top:5px!important}
+}
+
+/* Remove the last remaining motion-heavy effect. */
+.status.busy .dot{animation:none!important}
+.zoom-preset:active,.btn:active,.shutter:active .core{transform:none!important}
+
+/* Map copy uses the actual event city. */
+.map-place b{letter-spacing:-.01em}
+
+body[data-view="camera"] .site-credit{display:none!important}
+
+/* Capture review and camera framing */
+.review-discard-x{z-index:8;background:#fff!important;color:#28353d!important;border:1px solid rgba(31,42,50,.12)!important;box-shadow:0 2px 8px rgba(20,28,33,.10)!important}
+body[data-view="camera"] .cam-stage video{image-rendering:auto;-webkit-transform:translateZ(0);transform:translateZ(0)}
+body[data-view="camera"] .cam-stage{contain:layout paint}
+@media(max-width:390px){body[data-view="camera"] .cam-bottom .shutter{width:82px!important;height:82px!important}body[data-view="camera"] .cam-bottom .shutter .core{width:66px!important;height:66px!important}}
+
+/* Final interaction polish */
+button, .btn { -webkit-user-select:none; user-select:none; }
+.review-discard-x { width:42px!important; height:42px!important; border-radius:50%!important; display:grid; place-items:center; }
+
+/* Keep the main navigation visible on the camera, at the very bottom. The camera
+   preview remains full-frame behind it and the shutter deck sits just above it. */
+body[data-view="camera"] #nav{
+  position:absolute!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;
+  transform:none!important;width:100%!important;height:calc(66px + var(--safe-b))!important;padding:0 4px var(--safe-b)!important;
+  border:0!important;border-top:1px solid #e0e4e7!important;border-radius:0!important;background:rgba(255,255,255,.98)!important;
+  box-shadow:0 -2px 10px rgba(33,44,52,.10)!important;z-index:45!important;overflow:hidden!important;
+}
+body[data-view="camera"] #nav button{color:#65727b!important;min-width:0!important;padding:0 4px!important}
+body[data-view="camera"] #nav button[aria-current="page"]{color:var(--brand)!important}
+body[data-view="camera"] #nav button[aria-current="page"]::before{top:0!important;bottom:auto!important;width:28px!important;height:2px!important;border-radius:0!important}
+body[data-view="camera"] .cam-bottom{bottom:calc(66px + var(--safe-b))!important;padding-bottom:10px!important}
+body[data-view="camera"] .zoom-presets{bottom:calc(66px + 126px + var(--safe-b))!important}
+body[data-view="camera"] .readout{bottom:calc(66px + 128px + var(--safe-b))!important}
+body[data-view="camera"] .zoom-bar{bottom:calc(66px + 184px + var(--safe-b))!important;top:auto!important}
+body[data-view="camera"] .zoom-presets{pointer-events:auto!important;z-index:34!important}
+body[data-view="camera"] .zoom-presets .zoom-preset{min-width:48px!important;height:32px!important;padding:0 8px!important}
+@media(max-height:650px) and (orientation:portrait){body[data-view="camera"] #nav{height:calc(58px + var(--safe-b))!important}body[data-view="camera"] .cam-bottom{bottom:calc(58px + var(--safe-b))!important}body[data-view="camera"] .zoom-presets{bottom:calc(58px + 116px + var(--safe-b))!important}body[data-view="camera"] .readout{bottom:calc(58px + 116px + var(--safe-b))!important}}
+
+/* ---------- final camera ergonomics ---------- */
+body[data-view="camera"] #nav,
+body.camera-recording[data-view="camera"] #nav{
+  display:flex!important;
+  position:absolute!important;
+  left:0!important;right:0!important;bottom:0!important;top:auto!important;
+  transform:none!important;width:100%!important;height:calc(var(--camera-nav-h) + var(--safe-b))!important;
+  padding:0 6px var(--safe-b)!important;margin:0!important;border:0!important;border-top:1px solid rgba(36,48,56,.10)!important;
+  border-radius:0!important;background:#fff!important;box-shadow:0 -1px 9px rgba(36,48,56,.08)!important;overflow:hidden!important;
+  z-index:60!important;
+}
+body[data-view="camera"] #nav button{height:100%!important;min-width:0!important;flex:1 1 0!important;padding:3px 4px 1px!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;color:#68757e!important;gap:2px!important}
+body[data-view="camera"] #nav button[aria-current="page"]{color:var(--brand)!important;font-weight:750!important;background:#fff!important}
+body[data-view="camera"] #nav button[aria-current="page"]::before{display:none!important}
+body[data-view="camera"] #nav button[aria-current="page"]::after{content:"";position:absolute;left:26%;right:26%;top:0;bottom:auto;height:3px;border-radius:0 0 2px 2px;background:var(--brand)!important}
+body[data-view="camera"] #nav .badge{top:7px;right:20%;border:2px solid #fff}
+body[data-view="camera"] .cam-bottom,
+body.camera-recording[data-view="camera"] .cam-bottom{
+  left:0!important;right:0!important;transform:none!important;bottom:calc(var(--camera-nav-h) + var(--safe-b))!important;
+  width:100%!important;max-width:none!important;padding:4px max(14px,var(--safe-l)) 8px max(14px,var(--safe-r))!important;
+  border:0!important;border-radius:0!important;background:#fff!important;box-shadow:none!important;
+  z-index:52!important;
+}
+body[data-view="camera"] .camera-mode-row{margin:0!important;height:28px;align-items:center}
+body[data-view="camera"] .modes{gap:18px!important;padding:0!important}
+body[data-view="camera"] .modes button{min-width:74px!important;min-height:24px!important;padding:0 8px!important;font-size:10px!important;letter-spacing:.10em!important}
+body[data-view="camera"] .shutter-row{max-width:560px!important;margin:0 auto!important;gap:16px!important;padding:2px 0 1px!important}
+body[data-view="camera"] .cam-bottom .side-btn{width:58px!important;height:48px!important;min-height:48px!important;border:0!important;background:#f6f7f8!important;box-shadow:none!important;border-radius:50%!important}
+body[data-view="camera"] .cam-bottom .side-btn span{font-size:8px!important;line-height:1!important}
+body[data-view="camera"] .cam-bottom .side-btn svg{width:20px!important;height:20px!important}
+body[data-view="camera"] .shutter{width:82px!important;height:82px!important;margin:0!important}
+body[data-view="camera"] .shutter .core{width:64px!important;height:64px!important;border:4px solid #eef0f2!important;background:#fff!important;box-shadow:none!important}
+body[data-view="camera"] .shutter::before{border-color:var(--brand)!important}
+body[data-view="camera"] .shutter::after{background:var(--amber)!important}
+body[data-view="camera"] .shutter.video .core,
+body[data-view="camera"] .shutter.recording .core{background:var(--rec)!important;border-color:#ffd7d2!important}
+body[data-view="camera"] .zoom-presets{
+  top:auto!important;right:auto!important;left:50%!important;transform:translateX(-50%)!important;
+  bottom:calc(var(--camera-nav-h) + 147px + var(--safe-b))!important;
+  padding:2px!important;gap:2px!important;border:1px solid rgba(36,48,56,.08)!important;border-radius:999px!important;
+  background:rgba(255,255,255,.97)!important;box-shadow:0 2px 8px rgba(36,48,56,.10)!important;z-index:54!important;
+}
+body[data-view="camera"] .zoom-preset{min-width:48px!important;height:30px!important;border-radius:999px!important;background:transparent!important;color:#5c6971!important;font-size:11px!important;font-weight:750!important}
+body[data-view="camera"] .zoom-preset.active{background:var(--brand)!important;color:#fff!important}
+body[data-view="camera"] .zoom-bar{top:auto!important;right:14px!important;bottom:calc(var(--camera-nav-h) + 130px + var(--safe-b))!important}
+body[data-view="camera"] .readout{top:auto!important;right:14px!important;bottom:calc(var(--camera-nav-h) + 126px + var(--safe-b))!important}
+body[data-view="camera"] .readout:not(.on){display:none!important}
+body[data-view="camera"] .cam-stage{touch-action:none!important;overscroll-behavior:none!important}
+body[data-view="camera"] .cam-stage video{object-fit:cover!important;object-position:50% 50%!important;touch-action:none!important;user-select:none!important;-webkit-user-select:none!important}
+body[data-view="camera"] .cam-stage .vf{opacity:.09!important}
+body[data-view="camera"] .camera-brand{background:rgba(255,255,255,.94)!important;box-shadow:0 1px 5px rgba(36,48,56,.08)!important}
+body[data-view="camera"] .camera-top-actions .tool{box-shadow:0 1px 5px rgba(36,48,56,.08)!important}
+body[data-view="camera"] .camera-challenge-row .chip{box-shadow:0 1px 5px rgba(36,48,56,.07)!important}
+
+@media (max-width:520px){
+  body[data-view="camera"] .cam-bottom{padding-left:max(10px,var(--safe-l))!important;padding-right:max(10px,var(--safe-r))!important}
+  body[data-view="camera"] .shutter-row{gap:10px!important}
+  body[data-view="camera"] .cam-bottom .side-btn{width:52px!important;height:46px!important;min-height:46px!important}
+  body[data-view="camera"] .shutter{width:76px!important;height:76px!important}
+  body[data-view="camera"] .shutter .core{width:60px!important;height:60px!important}
+  body[data-view="camera"] .zoom-presets{bottom:calc(var(--camera-nav-h) + 137px + var(--safe-b))!important}
+}
+@media (max-width:390px){
+  body[data-view="camera"] #nav button{font-size:9px!important}
+  body[data-view="camera"] #nav button svg{width:17px!important;height:17px!important}
+  body[data-view="camera"] .camera-brand-copy span{max-width:35vw!important}
+  body[data-view="camera"] .cam-bottom .side-btn{width:46px!important;height:44px!important;min-height:44px!important}
+  body[data-view="camera"] .shutter{width:72px!important;height:72px!important}
+  body[data-view="camera"] .shutter .core{width:56px!important;height:56px!important}
+}
+@media (max-height:690px) and (orientation:portrait){
+  body[data-view="camera"] #nav{--camera-nav-h:58px!important}
+  body[data-view="camera"] .cam-bottom{padding-top:2px!important;padding-bottom:3px!important}
+  body[data-view="camera"] .camera-mode-row{height:23px!important}
+  body[data-view="camera"] .cam-bottom .side-btn{height:42px!important;min-height:42px!important}
+  body[data-view="camera"] .shutter{width:66px!important;height:66px!important}
+  body[data-view="camera"] .shutter .core{width:52px!important;height:52px!important}
+  body[data-view="camera"] .zoom-presets{bottom:calc(var(--camera-nav-h) + 120px + var(--safe-b))!important}
+  body[data-view="camera"] .readout{bottom:calc(var(--camera-nav-h) + 108px + var(--safe-b))!important}
+}
+@media (orientation:landscape){
+  body[data-view="camera"] .camera-challenge-row{padding-top:5px!important}
+  body[data-view="camera"] .camera-topline{padding-top:calc(6px + var(--safe-t))!important}
+  body[data-view="camera"] .cam-bottom{max-width:680px!important;margin:0 auto!important}
+  body[data-view="camera"] .zoom-presets{bottom:calc(var(--camera-nav-h) + 128px + var(--safe-b))!important}
+}
+
+/* Maps never collapse into a blank area when there are no pins. */
+.map-wrap{min-height:220px;background:#edf3ee!important}
+.map-wrap canvas{min-height:220px}
+.map-location-card{width:100%;text-align:left;cursor:pointer}
+.admin-pin-map{min-height:260px}

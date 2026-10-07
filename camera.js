@@ -89,51 +89,154 @@ export async function requestMediaPermissions() {
   }
   return { camera, microphone };
 }
+export function coverCrop(videoWidth, videoHeight, viewWidth, viewHeight) {
+  const vw = Math.max(1, Number(videoWidth) || 1), vh = Math.max(1, Number(videoHeight) || 1);
+  const rw = Math.max(1, Number(viewWidth) || vw), rh = Math.max(1, Number(viewHeight) || vh);
+  const sourceRatio = vw / vh, viewRatio = rw / rh;
+  if (sourceRatio > viewRatio) {
+    const sw = Math.max(1, Math.round(vh * viewRatio));
+    return { sx: Math.round((vw - sw) / 2), sy: 0, sw, sh: vh };
+  }
+  const sh = Math.max(1, Math.round(vw / viewRatio));
+  return { sx: 0, sy: Math.round((vh - sh) / 2), sw: vw, sh };
+}
+
+function classifyCameraLabel(label) {
+  const x = String(label || '').toLowerCase();
+  if (/front|face|user|facetime/.test(x)) return 'front';
+  if (/ultra|wide|0[.,]?5|back|rear|environment/.test(x)) return 'back';
+  return 'unknown';
+}
+
+async function enumerateLensOptions() {
+  if (!navigator.mediaDevices?.enumerateDevices) return [];
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videos = devices.filter((d) => d.kind === 'videoinput');
+    return videos.map((d) => {
+      let caps = {};
+      try { caps = typeof d.getCapabilities === 'function' ? (d.getCapabilities() || {}) : {}; } catch { /* optional */ }
+      const label = d.label || 'Camera';
+      const kind = classifyCameraLabel(label);
+      const minZoom = Number(caps.zoom?.min);
+      const maxZoom = Number(caps.zoom?.max);
+      const ultraWide = /ultra.?wide|wide.?angle|0[.,]?5x|0[.,]?5|13mm|14mm|15mm/.test(label.toLowerCase()) || (Number.isFinite(minZoom) && minZoom <= 0.5);
+      return { deviceId: d.deviceId, groupId: d.groupId || '', label, kind, ultraWide, minZoom: Number.isFinite(minZoom) ? minZoom : null, maxZoom: Number.isFinite(maxZoom) ? maxZoom : null };
+    });
+  } catch { return []; }
+}
+
 export class Camera {
   constructor(video) {
     this.video = video; this.stream = null; this.facing = 'environment';
-    this.caps = { torch: false, zoom: null, flip: false, focus: false };
+    this.caps = { torch: false, zoom: null, flip: false, focus: false, stabilization: false, ultraWide: false };
+    this.lenses = [];
+    this.activeDeviceId = '';
+    this.lensMode = 'default';
     this.torchOn = false; this.wake = null; this.session = null;
   }
   get active() { return !!this.stream && this.stream.getVideoTracks().some((t) => t.readyState === 'live'); }
 
-  async start(facing = this.facing) {
-    this.stopStream();
+  async start(arg = this.facing) {
     if (debug.get('noCamera')) throw new CameraError('denied', 'Camera permission was blocked.');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw explain(null);
+    const opts = typeof arg === 'string' ? { facing: arg } : (arg || {});
+    const facing = opts.facing || this.facing || 'environment';
     this.facing = facing;
+    const video = {
+      facingMode: { ideal: facing },
+      // Prefer the camera's native 4:3-style sensor mode. On tall phones this
+      // gives a wider field of view than forcing a 16:9 stream, while the actual
+      // saved frame is still cropped to the exact visible viewfinder.
+      width: { ideal: 1920, max: 2560 },
+      height: { ideal: 1440, max: 1920 },
+      frameRate: { ideal: 30, max: 60 },
+      aspectRatio: { ideal: 4 / 3 },
+      resizeMode: { ideal: 'none' },
+    };
+    if (opts.deviceId) { delete video.facingMode; video.deviceId = { exact: opts.deviceId }; }
+    // Keep the existing stream alive until the new camera stream is acquired. This
+    // avoids a black/empty preview when switching between the main, selfie, and
+    // ultra-wide cameras. If the browser refuses a second stream while the old
+    // one is active, retry once after releasing it.
+    let nextStream = null;
+    let firstError = null;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facing },
-          width: { ideal: 1080, max: 1920 },
-          height: { ideal: 1920, max: 1920 },
-          aspectRatio: { ideal: 9 / 16 },
-        }, audio: false });
+      nextStream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
     } catch (e) {
-      try { // some phones refuse the size hints: ask for any camera
-        this.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      firstError = e;
+    }
+    if (!nextStream && firstError) {
+      try {
+        this.stopStream();
+        const fallback = { video: { facingMode: { ideal: facing } }, audio: false };
+        if (opts.deviceId) fallback.video = { deviceId: { exact: opts.deviceId } };
+        nextStream = await navigator.mediaDevices.getUserMedia(fallback);
       } catch (e2) { throw explain(e2); }
     }
+    if (!nextStream) throw explain(firstError);
+    const oldStream = this.stream;
+    this.stream = nextStream;
+    if (oldStream) oldStream.getTracks().forEach((t) => t.stop());
     this.video.srcObject = this.stream;
-    this.video.muted = true; this.video.playsInline = true;
-    try { await this.video.play(); } catch { /* autoplay hiccup: the stream still works */ }
+    this.video.muted = true; this.video.playsInline = true; this.video.autoplay = true;
+    try { await this.video.play(); } catch { /* the stream can still become ready after a user gesture */ }
+    await this.waitForVideoReady(1400);
     const track = this.stream.getVideoTracks()[0];
     const settings = track.getSettings ? track.getSettings() : {};
     this.facing = settings.facingMode || facing;
+    this.activeDeviceId = settings.deviceId || opts.deviceId || '';
+    this.lensMode = opts.deviceId ? 'selected' : 'default';
     const c = track.getCapabilities ? track.getCapabilities() : {};
     this.caps.torch = !!c.torch;
     this.caps.focus = Array.isArray(c.focusMode) && c.focusMode.includes('continuous');
-    this.caps.zoom = c.zoom && c.zoom.max > c.zoom.min ? { min: c.zoom.min, max: c.zoom.max, step: c.zoom.step || 0.1, value: settings.zoom || c.zoom.min } : null;
+    this.caps.stabilization = Array.isArray(c.imageStabilizationMode) && c.imageStabilizationMode.length > 0;
+    this.caps.zoom = c.zoom && c.zoom.max > c.zoom.min ? { min: c.zoom.min, max: c.zoom.max, step: c.zoom.step || 0.1, value: settings.zoom ?? c.zoom.min } : null;
+    this.lenses = await enumerateLensOptions();
+    const backs = this.lenses.filter((x) => x.kind === 'back');
+    const ultra = backs.find((x) => x.ultraWide);
+    const wideByTrack = !!(c.zoom && Number(c.zoom.min) <= 0.5);
+    this.caps.ultraWide = !!ultra || wideByTrack;
+    this.lensInfo = {
+      currentLabel: String(settings.label || ''),
+      facing: this.facing,
+      rearCount: backs.length,
+      ultraWideDetected: !!ultra || wideByTrack,
+      ultraWideLabel: ultra?.label || '',
+      camerasDetected: this.lenses.length,
+    };
+    this.caps.flip = this.lenses.length > 1 || this.facing === 'environment';
     try {
-      const devs = await navigator.mediaDevices.enumerateDevices();
-      this.caps.flip = devs.filter((d) => d.kind === 'videoinput').length > 1;
-    } catch { this.caps.flip = false; }
+      const advanced = [];
+      if (this.caps.focus) advanced.push({ focusMode: 'continuous' });
+      if (Array.isArray(c.exposureMode) && c.exposureMode.includes('continuous')) advanced.push({ exposureMode: 'continuous' });
+      if (Array.isArray(c.whiteBalanceMode) && c.whiteBalanceMode.includes('continuous')) advanced.push({ whiteBalanceMode: 'continuous' });
+      if (advanced.length) await track.applyConstraints({ advanced });
+    } catch { /* optional camera controls */ }
+    try {
+      if (this.caps.stabilization) {
+        const modes = c.imageStabilizationMode;
+        const preferred = modes.includes('high') ? 'high' : modes.includes('standard') ? 'standard' : modes[0];
+        await track.applyConstraints({ advanced: [{ imageStabilizationMode: preferred }] });
+      } else if ('contentHint' in track) track.contentHint = 'motion';
+    } catch { /* stabilization is device-dependent */ }
     this.torchOn = false;
     return this.caps;
   }
 
   get mirrored() { return this.facing === 'user'; }
+
+  async waitForVideoReady(timeout = 1400) {
+    if (this.video.videoWidth && this.video.videoHeight) return true;
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (ok) => { if (done) return; done = true; clearTimeout(timer); this.video.removeEventListener('loadedmetadata', onMeta); this.video.removeEventListener('canplay', onMeta); resolve(ok); };
+      const onMeta = () => finish(!!(this.video.videoWidth && this.video.videoHeight));
+      const timer = setTimeout(() => finish(false), timeout);
+      this.video.addEventListener('loadedmetadata', onMeta, { once: true });
+      this.video.addEventListener('canplay', onMeta, { once: true });
+    });
+  }
 
   stopStream() {
     if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
@@ -143,7 +246,30 @@ export class Camera {
   }
   stop() { if (this.session) this.session.stop(); this.stopStream(); }
 
-  async flip() { return this.start(this.facing === 'user' ? 'environment' : 'user'); }
+  async flip() { return this.start(this.facing === 'user' ? { facing: 'environment' } : { facing: 'user' }); }
+
+  async useUltraWide() {
+    if (this.facing === 'user') return false;
+    const z = this.caps.zoom;
+    if (z && Number(z.min) <= 0.5) {
+      await this.setZoom(0.5);
+      this.lensMode = 'ultra';
+      return true;
+    }
+    // On browsers that expose individual rear cameras, use the device whose
+    // label/capabilities identify it as an ultra-wide lens. Never guess based
+    // on a generic back-camera number.
+    const candidate = this.lenses.find((x) => x.kind === 'back' && x.ultraWide);
+    if (!candidate) return false;
+    try {
+      await this.start({ deviceId: candidate.deviceId, facing: 'environment' });
+      this.lensMode = 'ultra';
+      if (this.caps.zoom && Number(this.caps.zoom.min) <= 0.5) await this.setZoom(0.5);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   async setTorch(on) {
     const track = this.stream && this.stream.getVideoTracks()[0];
@@ -153,7 +279,22 @@ export class Camera {
   async setZoom(v) {
     const track = this.stream && this.stream.getVideoTracks()[0];
     if (!track || !this.caps.zoom) return;
-    try { await track.applyConstraints({ advanced: [{ zoom: v }] }); this.caps.zoom.value = v; } catch { /* ignore */ }
+    const z = this.caps.zoom;
+    const target = Math.min(Number(z.max), Math.max(Number(z.min), Number(v)));
+    if (!Number.isFinite(target)) return;
+    this._zoomQueued = target;
+    if (this._zoomBusy) return this._zoomPromise;
+    this._zoomBusy = true;
+    this._zoomPromise = (async () => {
+      try {
+        while (this._zoomQueued != null && this.stream) {
+          const next = this._zoomQueued; this._zoomQueued = null;
+          if (Math.abs(Number(this.caps.zoom.value) - next) < 0.01) continue;
+          try { await track.applyConstraints({ advanced: [{ zoom: next }] }); this.caps.zoom.value = next; } catch { /* a rapid pinch can be rejected; the next queued value will be tried */ }
+        }
+      } finally { this._zoomBusy = false; this._zoomPromise = null; }
+    })();
+    return this._zoomPromise;
   }
 
   async wakeLock() { try { if (navigator.wakeLock) this.wake = await navigator.wakeLock.request('screen'); } catch { /* optional */ } }
@@ -162,21 +303,34 @@ export class Camera {
   /* ---- photo ---- */
   async photo() {
     const v = this.video;
-    if (!v.videoWidth) throw new CameraError('other', 'The camera is not ready yet.');
+    if (!v.videoWidth || !v.videoHeight) await this.waitForVideoReady(1200);
+    if (!v.videoWidth || !v.videoHeight) throw new CameraError('other', 'The camera is not ready yet.');
+    // The preview uses object-fit: cover. Crop the captured frame using the exact same
+    // viewfinder ratio so the saved photo is the picture the participant just saw.
+    const rect = v.getBoundingClientRect ? v.getBoundingClientRect() : { width: v.clientWidth, height: v.clientHeight };
+    const crop = coverCrop(v.videoWidth, v.videoHeight, rect.width || window.innerWidth, rect.height || window.innerHeight);
     const canvas = document.createElement('canvas');
-    canvas.width = v.videoWidth; canvas.height = v.videoHeight;
-    canvas.getContext('2d').drawImage(v, 0, 0);
+    canvas.width = crop.sw; canvas.height = crop.sh;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) throw new CameraError('other', 'The photo could not be created.');
+    if (this.mirrored) {
+      ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
+    }
+    ctx.drawImage(v, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
     const blob = await toBlob(canvas, 'image/jpeg', 0.92);
     if (!blob) throw new CameraError('other', 'The photo could not be created.');
-    return { blob, thumb: await this.makeThumb(), mime: 'image/jpeg', width: canvas.width, height: canvas.height };
+    return { blob, thumb: await this.makeThumb(crop), mime: 'image/jpeg', width: canvas.width, height: canvas.height };
   }
-  async makeThumb() {
+  async makeThumb(crop = null) {
     const v = this.video;
     if (!v.videoWidth) return null;
-    const scale = 480 / Math.max(v.videoWidth, v.videoHeight);
+    if (!crop) { const rect = v.getBoundingClientRect ? v.getBoundingClientRect() : { width: v.clientWidth, height: v.clientHeight }; crop = coverCrop(v.videoWidth, v.videoHeight, rect.width || v.videoWidth, rect.height || v.videoHeight); }
+    const maxSide = 480, scale = Math.min(1, maxSide / Math.max(crop.sw, crop.sh));
     const c = document.createElement('canvas');
-    c.width = Math.round(v.videoWidth * scale); c.height = Math.round(v.videoHeight * scale);
-    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    c.width = Math.max(1, Math.round(crop.sw * scale)); c.height = Math.max(1, Math.round(crop.sh * scale));
+    const ctx = c.getContext('2d', { alpha: false });
+    if (this.mirrored) { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
+    ctx.drawImage(v, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, c.width, c.height);
     return toBlob(c, 'image/jpeg', 0.72);
   }
 

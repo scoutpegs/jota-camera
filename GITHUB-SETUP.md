@@ -73,7 +73,7 @@ This build is intentionally flat. Upload the files directly into the repository 
 
 ## Map setup
 
-The built-in map opens centred on Boulder in the Kalgoorlie-Boulder area. Australia Post lists Boulder, WA as postcode 6432; postcode 6430 is used for Kalgoorlie and surrounding localities. The app uses the Boulder map centre and the organiser Google Sheet remains the source of truth for locations.
+The built-in map opens centred on Kalgoorlie, Western Australia. The organiser Google Sheet remains the source of truth for public event locations, with Supabase used as the authenticated admin copy and participant fallback when Apps Script is unavailable.
 
 In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to attach challenge numbers to a location. Those challenges then appear on the map and can launch the camera directly.
 
@@ -82,5 +82,5 @@ In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to atta
 Upload the contents of this package directly into the GitHub repository root. The runtime does not depend on css/js/icons subfolders.
 
 
-## Flat repository layout
-Upload every file from this package directly to the repository root. There are no required runtime folders. The included `404.html` redirects `/admin` and `/admin/` to `admin.html` automatically on GitHub Pages.
+## GitHub layout
+Upload every file in this package directly into the repository root. The production package intentionally contains no runtime subfolders. The organiser page is `admin.html`; `/admin` and `/admin/` redirect to it through the root `404.html`.

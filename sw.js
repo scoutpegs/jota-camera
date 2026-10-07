@@ -1,8 +1,8 @@
 // Service worker: keeps the app opening with no internet, and remembers map pictures you have looked at.
 // Photos, videos and the upload queue are NOT handled here; they live in IndexedDB (see db.js).
-const VERSION = 'v15-flat-production';
+const VERSION = 'v19-admin-pin-camera-framing';
 const SHELL_CACHE = 'jota-shell-' + VERSION;
-const TILE_CACHE = 'jota-tiles-v1';
+const TILE_CACHE = 'jota-tiles-v2';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'app.css',
   'main.js', 'util.js', 'db.js', 'debug.js', 'identity.js', 'api.js', 'supa.js', 'backend.js', 'config.js', 'location.js',

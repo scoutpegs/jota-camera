@@ -67,11 +67,16 @@ export async function getPins() {
 }
 
 function applySheetMapSettings(settings) {
-  if (settings.mapUrl) cfg.mapUrl = String(settings.mapUrl);
+  // Migrate the old bundled Boulder defaults at the browser boundary too.
+  // Organiser-chosen map settings are still respected; only the known legacy defaults are replaced.
+  const oldBoulderUrl = 'https://www.google.com/maps/search/?api=1&query=Boulder%2C%20Western%20Australia';
+  const url = settings.mapUrl == null ? '' : String(settings.mapUrl).trim();
+  if (url && url !== oldBoulderUrl && !/query=Boulder(?:%2C|,)/i.test(url)) cfg.mapUrl = url;
   if (settings.mapTileUrl) cfg.tileUrl = String(settings.mapTileUrl);
-  if (settings.mapCenterLat !== undefined && Number.isFinite(Number(settings.mapCenterLat))) cfg.mapCenterLat = Number(settings.mapCenterLat);
-  if (settings.mapCenterLon !== undefined && Number.isFinite(Number(settings.mapCenterLon))) cfg.mapCenterLon = Number(settings.mapCenterLon);
-  if (settings.mapZoom !== undefined && Number.isFinite(Number(settings.mapZoom))) cfg.mapZoom = Number(settings.mapZoom);
+  const lat = Number(settings.mapCenterLat), lon = Number(settings.mapCenterLon), zoom = Number(settings.mapZoom);
+  if (Number.isFinite(lat) && lat !== -30.7745) cfg.mapCenterLat = lat;
+  if (Number.isFinite(lon) && lon !== 121.488) cfg.mapCenterLon = lon;
+  if (Number.isFinite(zoom)) cfg.mapZoom = zoom;
 }
 
 function normalisePin(p) {

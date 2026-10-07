@@ -23,10 +23,10 @@ const DEFAULTS = Object.freeze({
   MAP_SETTINGS_HEADERS: ['Key', 'Value', 'Description'],
   LOCATION_HEADERS: ['ID', 'Name', 'Description', 'Instructions', 'Latitude', 'Longitude', 'Category', 'Icon', 'Points', 'PhotoRequired', 'VideoAllowed', 'Active', 'ChallengeNumbers'],
   MAP_DEFAULTS: {
-    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Boulder%2C%20Western%20Australia',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Kalgoorlie%2C%20Western%20Australia',
     mapTileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    mapCenterLat: -30.7745,
-    mapCenterLon: 121.488,
+    mapCenterLat: -30.7489,
+    mapCenterLon: 121.4658,
     mapZoom: 14,
   },
 });
@@ -95,6 +95,24 @@ function ensureMapSheets_(ss) {
       ['mapZoom', DEFAULTS.MAP_DEFAULTS.mapZoom, 'Initial map zoom level.'],
     ];
     settings.getRange(2, 1, rows.length, 3).setValues(rows);
+  } else {
+    // Migrate the previous bundled Boulder defaults, but never overwrite an organiser's custom map.
+    const n = settings.getLastRow() - 1;
+    if (n > 0) {
+      const values = settings.getRange(2, 1, n, 2).getValues();
+      const oldDefaults = {
+        mapUrl: 'https://www.google.com/maps/search/?api=1&query=Boulder%2C%20Western%20Australia',
+        mapCenterLat: -30.7745,
+        mapCenterLon: 121.488,
+      };
+      for (let i = 0; i < values.length; i++) {
+        const key = String(values[i][0] || '').trim();
+        const value = values[i][1];
+        if (key === 'mapUrl' && String(value).trim() === oldDefaults.mapUrl) settings.getRange(i + 2, 2).setValue(DEFAULTS.MAP_DEFAULTS.mapUrl);
+        if (key === 'mapCenterLat' && Number(value) === oldDefaults.mapCenterLat) settings.getRange(i + 2, 2).setValue(DEFAULTS.MAP_DEFAULTS.mapCenterLat);
+        if (key === 'mapCenterLon' && Number(value) === oldDefaults.mapCenterLon) settings.getRange(i + 2, 2).setValue(DEFAULTS.MAP_DEFAULTS.mapCenterLon);
+      }
+    }
   }
   const locations = ensureSheet_(ss, DEFAULTS.LOCATIONS_SHEET, DEFAULTS.LOCATION_HEADERS);
   locations.getRange(1, 1, 1, DEFAULTS.LOCATION_HEADERS.length).setFontWeight('bold');
@@ -163,6 +181,22 @@ function readMapSheet_() {
     sheetId: ss.getId(),
     updatedAt: new Date().toISOString(),
   };
+}
+
+function syncSupabasePinsToSheet() {
+  const ss = getSpreadsheet_();
+  const { locations: sheet } = ensureMapSheets_(ss);
+  const rows = restGet_('locations?select=id,name,description,instructions,latitude,longitude,category,icon,points,photo_required,video_allowed,active,challenge_numbers&order=name');
+  const data = rows.map((p) => [
+    p.id, p.name || '', p.description || '', p.instructions || '', Number(p.latitude), Number(p.longitude), p.category || '', p.icon || '',
+    Number(p.points || 0), !!p.photo_required, p.video_allowed !== false, p.active !== false, Array.isArray(p.challenge_numbers) ? p.challenge_numbers.join(', ') : ''
+  ]);
+  const last = Math.max(0, sheet.getLastRow() - 1);
+  if (last > 0) sheet.getRange(2, 1, last, DEFAULTS.LOCATION_HEADERS.length).clearContent();
+  if (data.length) sheet.getRange(2, 1, data.length, DEFAULTS.LOCATION_HEADERS.length).setValues(data);
+  SpreadsheetApp.flush();
+  writeHealth_('pin-sync', 'OK', `${data.length} map locations copied from Supabase to Google Sheets.`);
+  return { ok: true, locations: data.length, sheetUrl: ss.getUrl(), updatedAt: new Date().toISOString() };
 }
 
 function syncSheetToSupabase() {
@@ -275,7 +309,13 @@ function doGet(e) {
   }
   if (p.op === 'syncSheet') {
     if (!validClientKey_(p.key)) return json_({ ok: false, error: 'BAD_KEY' });
-    return json_(syncSheetToSupabase());
+    const payload = syncSheetToSupabase();
+    return p.callback ? jsonp_(payload, p.callback) : json_(payload);
+  }
+  if (p.op === 'syncPinsToSheet') {
+    if (!validClientKey_(p.key)) return json_({ ok: false, error: 'BAD_KEY' });
+    const payload = syncSupabasePinsToSheet();
+    return p.callback ? jsonp_(payload, p.callback) : json_(payload);
   }
   return json_({ ok: true, service: 'jota-joti-drive-backup', time: new Date().toISOString() });
 }

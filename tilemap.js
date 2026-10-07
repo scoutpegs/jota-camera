@@ -234,7 +234,7 @@ export class TileMap {
       t = { img: new Image(), ok: false, failed: false };
       t.img.crossOrigin = 'anonymous';
       t.img.onload = () => { t.ok = true; this.invalidate(); };
-      t.img.onerror = () => { t.failed = true; this.invalidate(); };
+      t.img.onerror = () => { t.failed = true; };
       t.img.src = tileUrlFor(this.tileUrl, z, x, y);
       this.tiles.set(key, t);
       if (this.tiles.size > 400) this.tiles.delete(this.tiles.keys().next().value);
@@ -256,8 +256,8 @@ export class TileMap {
     ctx.strokeStyle = '#d8dde1'; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.moveTo(w * .18, -30); ctx.bezierCurveTo(w * .30, h * .28, w * .23, h * .68, w * .52, h + 30); ctx.stroke();
     ctx.fillStyle = '#51636d'; ctx.textAlign = 'left';
-    ctx.font = '700 19px system-ui, sans-serif'; ctx.fillText('Boulder, Western Australia', 18, 40);
-    ctx.font = '12px system-ui, sans-serif'; ctx.fillStyle = '#617079'; ctx.fillText('Event map · live locations appear here when available', 18, 60);
+    ctx.font = '700 19px system-ui, sans-serif'; ctx.fillText('Kalgoorlie, Western Australia', 18, 40);
+    ctx.font = '12px system-ui, sans-serif'; ctx.fillStyle = '#617079'; ctx.fillText('JOTA-JOTI event map · live locations appear here when available', 18, 60);
     ctx.font = '11px system-ui, sans-serif'; ctx.fillStyle = '#748189'; ctx.fillText('Offline base view · map tiles will layer in when available', 18, h - 20);
     ctx.restore();
   }
@@ -265,7 +265,7 @@ export class TileMap {
   draw() {
     const { ctx, w, h } = this;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    // Always draw the Boulder base first. Live OSM tiles are layered on top when available.
+    // Always draw the Kalgoorlie base first. Live OSM tiles are layered on top when available.
     // That keeps the map useful during first load, weak signal and offline use.
     this.drawOfflineFallback(ctx, w, h);
     const tz = clamp(Math.round(this.zoom), this.minZoom, this.maxZoom), scale = 2 ** (this.zoom - tz);

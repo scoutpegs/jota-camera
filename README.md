@@ -1,8 +1,8 @@
 # JOTA-JOTI Camera / Media Platform
 
-Final product-hardening build. The participant site is flat-root GitHub Pages ready, with `/admin/` compatibility and light-only mobile-first camera UI.
+Production build. The participant site is flat-root GitHub Pages ready, with `/admin/` compatibility and light-only mobile-first camera UI.
 
-Service worker version: `v14-platform-hardening`.
+Service worker version: `v19-admin-pin-camera-framing`.
 
 # JOTA-JOTI Camera
 
@@ -37,7 +37,7 @@ The browser contains only the Supabase publishable key and the non-secret backup
 3. Make sure the organiser Auth user uses `jota.joti.boulder@gmail.com`.
 4. Open the JOTA-JOTI Google Sheet, then Extensions -> Apps Script. Replace the script with `google-apps-script/Code.gs`.
 5. Run `setup()` once and approve the Google permissions. The script creates the Drive backup folder, backup sheets and a 5-minute worker trigger.
-6. Deploy the Apps Script as a Web app, Execute as you, with public access for event participants. The current build is configured for the supplied `/exec` endpoint in `js/backend.js`. If you create another deployment URL, update that one line before publishing.
+6. Deploy the Apps Script as a Web app, Execute as you, with public access for event participants. The current build is configured for the supplied `/exec` endpoint in `backend.js`. If you create another deployment URL, update that one line before publishing.
 7. Upload this package to the GitHub repository and enable GitHub Pages from the root of the `main` branch.
 8. Test one photo, one video, one offline post, and the storage-full simulator before the event.
 
@@ -75,14 +75,10 @@ The My posts screen is map-first. Geotagged captures are shown as thumbnail mark
 
 ## Map setup
 
-The built-in map opens centred on Boulder in the Kalgoorlie-Boulder area. Australia Post lists Boulder, WA as postcode 6432; postcode 6430 is used for Kalgoorlie and surrounding localities. The app uses the Boulder map centre and the organiser Google Sheet remains the source of truth for locations.
+The built-in map opens centred on Kalgoorlie, Western Australia. The organiser Google Sheet remains the source of truth for public event locations, with Supabase used as the authenticated admin copy and participant fallback when Apps Script is unavailable.
 
 In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to attach challenge numbers to a location. Those challenges then appear on the map and can launch the camera directly.
 
 
-### GitHub Pages layout
-This release is intentionally flat. Upload the package contents directly to the repository root. Use the normal site URL for participants and `/admin` or `/admin/` for organiser tools; GitHub Pages will route that path to `admin.html` through the included 404 handler.
-
-## Final release notes
-
-This release is a flat GitHub Pages package. Upload every file directly to the repository root. The included `404.html` routes `/admin` and `/admin/` to `admin.html`. See `FINAL-TEST-REPORT.md` and `BUTTON-AUDIT.md` for the final build and interaction review.
+## GitHub layout
+Upload every file in this package directly into the repository root. The production package intentionally contains no runtime subfolders. The organiser page is `admin.html`; `/admin` and `/admin/` redirect to it through the root `404.html`.

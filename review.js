@@ -74,7 +74,7 @@ export function mountReview(root, app) {
         sub.mediaType === 'video' ? el('span', { class: 'pill' }, fmtClock(sub.duration)) : null),
       msg,
       el('div', { class: 'row' }, el('button', { class: 'btn ghost', id: 'retake-btn', onclick: () => leave() }, 'Retake'), next));
-    const close = el('button', { class: 'tool', style: { position: 'absolute', top: '12px', left: 'calc(12px + var(--safe-l))' }, 'aria-label': 'Close', onclick: () => leave() }, icon('close'));
+    const close = el('button', { class: 'tool review-discard-x', style: { position: 'absolute', top: '12px', left: 'calc(12px + var(--safe-l))' }, 'aria-label': 'Discard photo or video', title: 'Discard', onclick: async () => { const ok = confirm('Discard this photo or video?'); if (!ok) return; await discard(sub.id); toast('Discarded.', 'ok'); app.go('camera', {}, { replace: true }); } }, icon('close'));
     root.append(el('div', { class: 'stage' }, media), close, bar);
     evaluate();
   }

@@ -57,7 +57,7 @@ The published site is already configured to use this Apps Script deployment:
 
 `https://script.google.com/macros/s/AKfycbxvOz7yfWfznj3E0q5ZuFL3tJRyBP2Z5C-1Ia-2Mla1EdOoKQxjOeIgULX89ciF7NR8/exec`
 
-If you later create a different deployment, replace `GOOGLE_BACKUP_URL` in `js/backend.js` with the new `/exec` URL before publishing that version.
+If you later create a different deployment, replace `GOOGLE_BACKUP_URL` in `backend.js` with the new `/exec` URL before publishing that version.
 
 When you change `Code.gs` later, deploy a new version of the existing deployment. Do not create a different URL unless you also update `js/backend.js`.
 
@@ -65,15 +65,15 @@ Keep the Apps Script project owned by the same Google account that should own th
 
 ## 3. GitHub Pages
 
-Upload the **contents** of this package so `index.html` is at the top level of the repository. Keep `admin/`, `js/`, `css/`, `icons/`, `setup/`, `google-apps-script/`, `manifest.webmanifest`, `sw.js` and `.nojekyll`.
+Upload the **contents** of this package so `index.html` is at the top level of the repository. Keep the runtime files at the repository root: `admin.html`, `admin.js`, `admin.css`, `backend.js`, `supabase-setup.sql`, `Code.gs`, `manifest.webmanifest`, `sw.js`, and `.nojekyll`.
 
 In GitHub go to Settings -> Pages. Choose Deploy from a branch, branch `main`, folder `/ (root)`, then Save.
 
-The participant address is the repository Pages URL. The organiser page is the same URL with `/admin/` at the end.
+The participant address is the repository Pages URL. The organiser page is `admin.html`; `/admin` and `/admin/` redirect to it through the root `404.html`.
 
 ## 4. First organiser login
 
-Open `/admin/` and log in using the organiser email and password.
+Open `/admin.html` (or `/admin/`) and log in using the organiser email and password.
 
 Go to Settings and save your competition name, video length and other settings.
 
@@ -131,7 +131,7 @@ The app polls Supabase for the backup confirmation before deleting the local fil
 
 **Admin says the account is not an organiser:** run the SQL again and make sure the Auth user's email exactly matches `jota.joti.boulder@gmail.com`.
 
-**Backup page says waiting:** check that Apps Script is deployed as a Web app, the URL in `js/backend.js` is the `/exec` URL, and `setup()` completed successfully. Then open Organiser -> Google backup -> Run backup now.
+**Backup page says waiting:** check that Apps Script is deployed as a Web app, the URL in `backend.js` is the `/exec` URL, and `setup()` completed successfully. Then open Organiser -> Google backup -> Run backup now.
 
 **Camera does not work:** use the HTTPS GitHub Pages address and allow camera/microphone permissions.
 
@@ -145,7 +145,7 @@ The app polls Supabase for the backup confirmation before deleting the local fil
 
 `google-apps-script/Code.gs` is the Drive backup worker.
 
-`js/backend.js` contains the browser-safe project configuration.
+`backend.js` contains the browser-safe project configuration.
 
 Do not add the organiser password to any of these files.
 
@@ -192,7 +192,7 @@ Columns, in this exact order:
 
 Leave **ID** blank when you add a new location. The Apps Script creates a UUID automatically. Enter latitude/longitude as decimal degrees. Use `true` or `false` in the Yes/No fields. Put challenge numbers in `ChallengeNumbers`, for example `1, 4, 12`.
 
-The **Map pins** page in Admin no longer edits Supabase locations directly. It shows what is currently in the Sheet and provides links to open the Sheet, open the Google map URL, and manually sync Sheet → Supabase.
+The **Map pins** page in Admin edits Supabase locations directly, with click-to-place and draggable markers. Each successful save immediately attempts to mirror the pin to Google Sheets. The page also provides explicit Pull from Google Sheet and Push pins to Sheet controls for reconciliation.
 
 
 ## GitHub root upload
@@ -210,6 +210,10 @@ When the phone exposes hardware zoom controls, the camera shows quick 1x and 2x 
 
 ## Map setup
 
-The built-in map opens centred on Boulder in the Kalgoorlie-Boulder area. Australia Post lists Boulder, WA as postcode 6432; postcode 6430 is used for Kalgoorlie and surrounding localities. The app uses the Boulder map centre and the organiser Google Sheet remains the source of truth for locations.
+The built-in map opens centred on Kalgoorlie, Western Australia. The organiser Google Sheet remains the source of truth for public event locations, with Supabase used as the authenticated admin copy and participant fallback when Apps Script is unavailable.
 
 In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to attach challenge numbers to a location. Those challenges then appear on the map and can launch the camera directly.
+
+
+## GitHub layout
+Upload every file in this package directly into the repository root. The production package intentionally contains no runtime subfolders. The organiser page is `admin.html`; `/admin` and `/admin/` redirect to it through the root `404.html`.
