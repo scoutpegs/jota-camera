@@ -1,97 +1,27 @@
-# JOTA-JOTI Camera validation report
+# JOTA-JOTI Camera static production check
 
-Build checked: 6 October 2026
+Build: light-only participant UI, full-screen camera, Sheet-driven map, Supabase storage and Google Drive backup/fallback.
 
-## Automated checks
+## Passed static checks
 
-The package was checked repeatedly for:
+- JavaScript syntax checked for every root `.js` file.
+- `Code.gs` syntax checked after temporary `.js` conversion for the Node parser.
+- `manifest.webmanifest` parses as valid JSON.
+- Every local JavaScript/CSS/image reference used by `index.html` and `admin.html` exists at the repository root.
+- Every relative ES module import points to a file in the package.
+- Every service-worker shell entry exists.
+- Participant stylesheet contains no `prefers-color-scheme: dark` rules.
+- Participant stylesheet contains no looping pulse animation.
+- No organiser password literal is present in the package source.
+- Runtime files are flat at the repository root. No `setup/`, `js/`, `css/`, `icons/` or other runtime subfolders are required.
+- Supabase, Apps Script and 30 MB media-limit wiring is present.
+- Google Drive fallback payload uses the `base64` field expected by `Code.gs`.
+- Supabase upload refresh path uses the active session variable correctly.
+- Map data can load from local cache before waiting for the online Google Sheet refresh.
+- Map touch handling includes bounded fling/inertia and a parent-tile visual fallback while new tiles load.
+- Camera photo framing uses the same viewfinder crop calculation for the saved image.
+- PWA manifest is configured for standalone display.
 
-- JavaScript syntax in every `*.js` file
-- Admin JavaScript syntax
-- Google Apps Script syntax
-- relative import paths
-- required PWA/service-worker files
-- embedded configuration consistency
-- password leakage into the package
-- Google Sheet map field names
-- Apps Script Sheet parsing, UUID generation, boolean parsing, map configuration output, Sheet -> Supabase sync calls, and Google Drive fallback validation
-- ZIP archive integrity after packaging
+## Live-device limitation
 
-The Google Apps Script unit harness also verifies that blank latitude/longitude rows are ignored, which prevents empty Sheet rows from becoming false coordinates at `0,0`.
-
-## Important live-service limitation
-
-A live browser session against GitHub Pages, Supabase and the Apps Script deployment could not be completed from the build environment because external browser/network access is blocked here. The code was therefore tested statically and with local/unit simulations, but the final account-side smoke test must be done from the published site.
-
-## Required live smoke test
-
-1. Open the published GitHub Pages URL over HTTPS.
-2. Enter a participant name.
-3. Allow camera and microphone when requested.
-4. Allow location if desired.
-5. Take a photo and submit it.
-6. Record a short video and submit it.
-7. Confirm the participant can see both in My posts.
-8. Confirm the organiser can see both in `/admin/`.
-9. Confirm the original media can be downloaded.
-10. Confirm a normal upload is backed up to Google Drive.
-11. Turn on Test mode -> `Pretend Supabase storage is full` and submit a small photo.
-12. Confirm the fallback reaches Google Drive and the local file is not removed before the backup is confirmed.
-13. Edit `Map Settings` and `Locations` in Google Sheets and confirm the participant Map tab updates.
-14. Turn off internet, capture and submit, close/reopen the app, reconnect, and confirm the queue uploads without creating a duplicate.
-
-## Google Sheet map source
-
-The participant Map tab reads the current `Map Settings` and `Locations` data through Apps Script and caches it for offline use. The Supabase copy is a mirror for challenge relationships and fallback operation. `Active=false` rows are kept in the Sheet/admin view but hidden from participants.
-
-
-## GitHub root upload
-This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. Runtime files are intentionally at the repository root. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
-
-## Final UI polish pass
-
-Completed:
-- Removed the participant-facing A/admin button from the bottom navigation.
-- Added installed-PWA safe-area spacing so top and bottom controls clear the phone's system UI.
-- Added quick 1x / 2x zoom controls when hardware zoom is supported, while retaining pinch/slider zoom.
-- Added immediate camera + microphone permission preflight after the participant enters their name.
-- Kept microphone denial non-fatal so the camera can still open.
-- Reduced non-essential blur and visual effects on the camera.
-- Added camera-specific dark app chrome for a more native camera-app feel.
-- Removed the external Google Fonts request from the HTML startup path for faster and more reliable loading.
-- Bumped the service-worker shell version to v7-camera-polish.
-
-Automated checks after the polish pass:
-- 29 JavaScript files passed `node --check`.
-- All local index.html assets resolved.
-- A/admin nav code removed from main navigation.
-- Quick 2x zoom code present.
-- Permission preflight wired into onboarding and camera modules.
-- Standalone safe-area CSS present.
-- Camera-specific chrome CSS present.
-- Reduced-motion support present.
-- External font request removed from HTML.
-- Current Google Apps Script URL present.
-- Service worker cache version bumped.
-
-
-### Map/memories pass
-- My posts converted to a map-first memories view
-- Geotagged local and remote submissions carry latitude/longitude into the map
-- Remote own-submission API includes signed media and thumbnail URLs
-- Challenge markers resolve from both Supabase `location_id` and Sheet `ChallengeNumbers`
-- Challenge markers open capture actions directly
-- Map panning, wheel zoom, pinch zoom, marker hit testing and safe-area layout retained
-- Automated syntax/import/path checks rerun after the memory-map changes
-
-Live phone camera/GPS testing still needs to be performed on the published HTTPS site because this build environment cannot grant camera/GPS permissions.
-
-
-## v10 platform finish validation
-- Fixed single-finger map panning and kept map fallback visible while live tiles load.
-- My posts now tracks the participant location when permission is available.
-- My posts supports persistent local removal of captures. Uploaded organiser copies are not deleted by the participant UI.
-- Challenge completion state only counts queued/uploading/uploaded submissions.
-- First-run flow is welcome -> name -> camera/microphone permission request -> camera; installation help remains in Settings.
-- Light-only visual pass removes gradient camera/review/memory surfaces and reduces shadows.
-- Google Sheet locations remain the map source; ChallengeNumbers links numbered challenges to those locations.
+A real phone/tablet acceptance test is still required for camera permission, microphone permission, GPS, torch, hardware lens switching, MediaRecorder formats and physical network conditions. The build environment used for this package blocked the local-browser smoke test, so those hardware behaviours are not claimed as environment-tested.

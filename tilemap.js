@@ -28,8 +28,9 @@ export class TileMap {
     this.canvas.setAttribute('aria-label', opts.label || 'Map. Use the list view for an accessible version.');
     container.append(this.canvas);
     this.ctx = this.canvas.getContext('2d');
-    this.ro = new ResizeObserver(() => this.resize());
-    this.ro.observe(container);
+    this.ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => this.resize()) : null;
+    if (this.ro) this.ro.observe(container);
+    else { this._resizeHandler = () => this.resize(); window.addEventListener('resize', this._resizeHandler, { passive: true }); }
     this.container = container;
     this.bind();
     this.onlineHandler = () => { this.tiles.forEach((t, k) => { if (t.failed) this.tiles.delete(k); }); this.invalidate(); };
@@ -37,7 +38,11 @@ export class TileMap {
     this.resize();
   }
 
-  destroy() { this.ro.disconnect(); window.removeEventListener('online', this.onlineHandler); this.markerImages.forEach((img) => { try { img.src = ''; } catch {} }); this.markerImages.clear(); this.canvas.remove(); }
+  destroy() {
+    if (this.ro) this.ro.disconnect();
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+    this.stopFling();
+    window.removeEventListener('online', this.onlineHandler); this.markerImages.forEach((img) => { try { img.src = ''; } catch {} }); this.markerImages.clear(); this.canvas.remove(); }
   resize() {
     const r = this.container.getBoundingClientRect();
     this.dpr = window.devicePixelRatio || 1;
@@ -87,6 +92,7 @@ export class TileMap {
     cv.style.touchAction = 'none';
     cv.addEventListener('pointerdown', (e) => {
       cv.setPointerCapture(e.pointerId);
+      this.stopFling();
       const pt = this.local(e);
       this.pointers.set(e.pointerId, { ...pt, x0: pt.x, y0: pt.y, t0: performance.now() });
       if (this.pointers.size === 1) {
@@ -100,6 +106,8 @@ export class TileMap {
       if (!p) return;
       const pt = this.local(e);
       const dx = pt.x - p.x, dy = pt.y - p.y;
+      const nowMove = performance.now();
+      const dtMove = Math.max(8, nowMove - (p.lastMove || p.t0));
       if (Math.hypot(pt.x - p.x0, pt.y - p.y0) > 6) this.moved = true;
       p.x = pt.x; p.y = pt.y;
       if (this.pointers.size >= 2) {
@@ -112,7 +120,12 @@ export class TileMap {
       } else if (this.dragMarker && this.moved) {
         const ll = this.screenToLatLon(pt.x, pt.y);
         this.dragMarker.lat = ll.lat; this.dragMarker.lon = ll.lon; this.invalidate();
-      } else if (this.moved) this.panBy(dx, dy);
+      } else if (this.moved) {
+        this.panBy(dx, dy);
+        const vx = dx / dtMove * 16, vy = dy / dtMove * 16;
+        this.velocity = { x: vx * 0.5 + (this.velocity?.x || 0) * 0.5, y: vy * 0.5 + (this.velocity?.y || 0) * 0.5, t: nowMove };
+      }
+      p.lastMove = nowMove;
     });
     const up = (e) => {
       const p = this.pointers.get(e.pointerId);
@@ -120,6 +133,9 @@ export class TileMap {
       this.pointers.delete(e.pointerId);
       if (this.pointers.size === 0) {
         if (this.dragMarker && this.moved) { this.onMarkerDrag && this.onMarkerDrag(this.dragMarker); }
+        else if (this.moved && this.velocity && performance.now() - this.velocity.t < 90 && Math.hypot(this.velocity.x, this.velocity.y) > 2) {
+          this.fling();
+        }
         else if (!this.moved && performance.now() - p.t0 < 600) {
           const m = this.hit(p.x, p.y);
           if (m) this.onMarkerClick && this.onMarkerClick(m);
@@ -139,6 +155,19 @@ export class TileMap {
       else if (e.key === 'ArrowLeft') this.panBy(step, 0); else if (e.key === 'ArrowRight') this.panBy(-step, 0);
       else if (e.key === 'ArrowUp') this.panBy(0, step); else if (e.key === 'ArrowDown') this.panBy(0, -step);
     });
+  }
+  stopFling() { this.flinging = false; this.velocity = null; }
+  fling() {
+    if (this.flinging) return;
+    this.flinging = true;
+    const step = () => {
+      if (!this.flinging || !this.velocity) return;
+      this.velocity.x *= 0.92; this.velocity.y *= 0.92;
+      if (Math.hypot(this.velocity.x, this.velocity.y) < 0.35) { this.stopFling(); return; }
+      this.panBy(this.velocity.x, this.velocity.y);
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
   local(e) { const r = this.canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
   pinchInfo() {
@@ -276,8 +305,17 @@ export class TileMap {
       for (let ty = Math.floor(y0 / TILE); ty <= Math.floor((y0 + h / scale) / TILE); ty++) {
         if (ty < 0 || ty >= n) continue;
         const sx = (tx * TILE - x0) * scale, sy = (ty * TILE - y0) * scale, size = TILE * scale + 0.6;
-        const t = this.tile(tz, ((tx % n) + n) % n, ty);
+        const wrappedX = ((tx % n) + n) % n;
+        const t = this.tile(tz, wrappedX, ty);
         if (t.ok) ctx.drawImage(t.img, sx, sy, size, size);
+        else if (tz > this.minZoom) {
+          const parent = this.tiles.get(`${tz - 1}/${Math.floor(wrappedX / 2)}/${Math.floor(ty / 2)}`);
+          if (parent && parent.ok) {
+            const cropX = (wrappedX % 2) * 128;
+            const cropY = (ty % 2) * 128;
+            ctx.drawImage(parent.img, cropX, cropY, 128, 128, sx, sy, size, size);
+          }
+        }
       }
     }
     // you are here

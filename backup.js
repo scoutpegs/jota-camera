@@ -48,7 +48,7 @@ export async function fallbackToDrive({ submission, media, thumb = null, audio =
   const files = [];
   const add = async (kind, blob, name) => {
     if (!blob || !blob.size) return;
-    files.push({ kind, name, mime: blob.type || 'application/octet-stream', size: blob.size, data: base64(await blob.arrayBuffer()) });
+    files.push({ kind, name, mime: blob.type || 'application/octet-stream', size: blob.size, base64: base64(await blob.arrayBuffer()) });
   };
   const ext = String((submission.mime || media.type || '').split('/')[1] || 'bin').split(';')[0].replace(/[^a-z0-9]/gi, '').slice(0, 8) || 'bin';
   await add('media', media, `${submission.id}.${ext}`);

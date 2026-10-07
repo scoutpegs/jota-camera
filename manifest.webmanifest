@@ -34,5 +34,9 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "display_override": [
+    "standalone"
+  ],
+  "prefer_related_applications": false
 }

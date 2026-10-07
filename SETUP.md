@@ -1,219 +1,287 @@
-# JOTA-JOTI Camera setup guide
+# JOTA-JOTI Camera setup
 
-This guide is written for the current package. It avoids putting the organiser password into GitHub.
+This package is a flat GitHub Pages site for Kalgoorlie Scout Group. The participant app is light-only. The camera is full-screen with dark camera controls because the controls sit over a live viewfinder.
+
+The normal storage path is:
+
+`Phone -> Supabase Storage -> Google Drive backup`
+
+If Supabase reports a storage or capacity failure while the original file is still on the phone, the app switches to:
+
+`Phone -> Google Apps Script -> Google Drive`
+
+The app keeps the local copy until the backup is confirmed. The browser only contains the Supabase publishable key and the backup client key. The organiser password is not included in this package.
 
 ## 1. Supabase
 
-Open your Supabase project.
+Open the Supabase project used by this package.
 
-### Authentication
+### Turn on anonymous sign-in
 
-Go to Authentication -> Providers and turn **Anonymous sign-ins** on.
+Open **Authentication** and the provider/settings area for anonymous sign-ins. Turn **Anonymous sign-ins** on.
 
-Go to Authentication -> Users and make sure the organiser account exists with:
+This app uses a Supabase anonymous user for each participant. Anonymous users still use the `authenticated` database role, so the SQL policies in this package are written for that role. See the official Supabase guide for the current dashboard wording: https://supabase.com/docs/guides/auth/auth-anonymous
 
-- Email: `jota.joti.boulder@gmail.com`
-- Password: keep this private and do not paste it into the project files
+### Create the organiser account
 
-For the easiest event setup, confirm the organiser account so email confirmation does not block the organiser login.
+Open **Authentication -> Users** and create the organiser user using:
 
-### SQL
+`jota.joti.boulder@gmail.com`
 
-Open SQL Editor -> New query. Open `setup/supabase-setup.sql`, paste the whole file, and Run.
+Use the organiser password you keep private. Do not put the password into SQL, `Code.gs`, `backend.js`, GitHub, or the ZIP.
 
-The SQL is safe to re-run. It creates the tables, policies, private storage buckets, backup columns, functions and default settings. It also limits a media file to 30 MB so the same file can safely fit through the Apps Script Drive fallback path.
+### Run the SQL
 
-After the query succeeds, do not paste the organiser password into SQL.
+Open **SQL Editor -> New query**. Open `supabase-setup.sql` from this package, copy the entire file, paste it into the query editor and run it.
 
-## 2. Google Sheet and Apps Script
+The file is designed to be safe to run again. It creates or updates the tables, Row Level Security policies, private storage buckets, functions and default event settings.
 
-Use the Google Sheet you want to keep for JOTA-JOTI. Open the sheet and choose Extensions -> Apps Script.
+The database limits each media submission to 30 MB. The same limit is used by the Drive fallback path so the two systems have the same operating boundary.
 
-Open the packaged `google-apps-script/Code.gs` and replace the contents of `Code.gs` with it. Save.
+After the SQL finishes, check the results for an error. If the query fails, do not continue to publishing until the SQL error is fixed.
 
-### First run
+## 2. Google Sheet
 
-Before running setup, open Apps Script -> Project Settings -> Script Properties and add:
+Create or open the Google Sheet that will be used for the event. The Apps Script in this package is designed to create the working tabs automatically.
+
+Open **Extensions -> Apps Script**.
+
+Delete the sample code and paste the complete contents of `Code.gs` from this package into the script project. Save it.
+
+## 3. Apps Script secret and setup
+
+Open **Project Settings** in Apps Script and find **Script Properties**.
+
+Add this property:
 
 `SUPABASE_PASSWORD` = your private Supabase organiser password
 
-Then choose the function `setup` and click Run. The current script is deliberately non-interactive, so it will not sit waiting for a password prompt. The password stays in Script Properties and is never written to `Code.gs`.
+Script Properties are intended for app-wide configuration and can be stored separately from the source code. See Google's current Properties service documentation: https://developers.google.com/apps-script/guides/properties
 
-Approve the requested Google permissions. The script creates:
+Back in the editor, select the `setup` function and click **Run**.
 
-- a Drive folder named `JOTA-JOTI Camera Backup`
-- a `Backups` sheet for successful Drive copies
-- a `Backup Errors` sheet for failures
-- a `Backup Health` sheet for setup and test results
-- a 5-minute trigger running `syncPendingBackups`
+The first run asks Google for permissions. Accept the requested permissions using the Google account that should own the event Sheet and Drive backup folder.
 
-The setup function also tests the Supabase organiser login and Drive access.
+`setup()` creates or prepares:
 
-### Web app deployment
+`Backups`
 
-In Apps Script choose Deploy -> New deployment, select **Web app**, set **Execute as** your account, and set access so event participants can reach the web app. Deploy.
+`Backup Errors`
 
-The published site is already configured to use this Apps Script deployment:
+`Backup Health`
 
-`https://script.google.com/macros/s/AKfycbxvOz7yfWfznj3E0q5ZuFL3tJRyBP2Z5C-1Ia-2Mla1EdOoKQxjOeIgULX89ciF7NR8/exec`
+`Map Settings`
 
-If you later create a different deployment, replace `GOOGLE_BACKUP_URL` in `backend.js` with the new `/exec` URL before publishing that version.
+`Locations`
 
-When you change `Code.gs` later, deploy a new version of the existing deployment. Do not create a different URL unless you also update `js/backend.js`.
+It also creates the Drive folder **JOTA-JOTI Camera Backup** and installs the background triggers used for backup and map synchronisation.
 
-Keep the Apps Script project owned by the same Google account that should own the Drive backup folder.
+The script runs a Supabase login check and a Drive write test during setup. Open `Backup Health` afterwards and make sure the latest setup/test row is `OK`.
 
-## 3. GitHub Pages
+## 4. Deploy Apps Script as the public web app
 
-Upload the **contents** of this package so `index.html` is at the top level of the repository. Keep the runtime files at the repository root: `admin.html`, `admin.js`, `admin.css`, `backend.js`, `supabase-setup.sql`, `Code.gs`, `manifest.webmanifest`, `sw.js`, and `.nojekyll`.
+In Apps Script choose **Deploy -> New deployment**. Choose **Web app**.
 
-In GitHub go to Settings -> Pages. Choose Deploy from a branch, branch `main`, folder `/ (root)`, then Save.
+Set the web app to execute as the account that owns the Sheet and Drive backup. Set access so the participant website can reach the web app without requiring every participant to sign into Google.
 
-The participant address is the repository Pages URL. The organiser page is `admin.html`; `/admin` and `/admin/` redirect to it through the root `404.html`.
+Google's current web app documentation explains the deployment flow and the `execute as`/access choices: https://developers.google.com/apps-script/guides/web
 
-## 4. First organiser login
+Deploy it and copy the `/exec` URL.
 
-Open `/admin.html` (or `/admin/`) and log in using the organiser email and password.
+The supplied package already points to the configured deployment in `backend.js`. When you create a new deployment URL, replace only `GOOGLE_BACKUP_URL` in `backend.js` with the new `/exec` URL and keep the backup client key unchanged unless you also change it in Apps Script.
 
-Go to Settings and save your competition name, video length and other settings.
+When `Code.gs` changes later, update the existing deployment to a new version rather than creating a different deployment URL every time.
 
-Then add your map pins, sounds and challenges.
+## 5. Map data in Google Sheets
 
-## 5. Real test
+The public Map tab reads these values through Apps Script and caches them on the phone. That makes the last known location list available even when the network disappears.
 
-Do this on an actual phone before the event.
+### Map Settings
 
-### Photo
+The columns are:
 
-Open the public site over HTTPS. Enter a participant name. Allow camera and microphone. Take a photo and submit it.
+`Key | Value | Description`
 
-Check Organiser -> Media. The item should say `SUPABASE` and `Backup: DONE` shortly after. The Google backup should also appear in Organiser -> Google backup.
+The important rows are:
 
-### Video
+`mapUrl`
 
-Record a video shorter than the configured maximum. Submit it and check the same two places.
+The Google Maps link opened by the Map tab.
 
-### Offline
+`mapTileUrl`
 
-Turn on flight mode. Take and submit a photo. My posts should say it is saved on the phone. Turn flight mode off and leave the app open until the upload finishes.
+The tile template used by the lightweight in-app map. The default is the OpenStreetMap tile template already in the package.
 
-### Storage-full fallback
+`mapCenterLat`
 
-You do not need to fill the Supabase bucket to test the fallback. On the phone, open Settings and tap the version text seven times to open Test mode. Turn on **Pretend Supabase storage is full**. Take a small photo and submit it.
+Starting latitude.
 
-The app should send the saved file to Apps Script, Apps Script should put it into Google Drive, and the app should only remove the large local copy after Supabase reports `Backup: DONE` with `DRIVE`.
+`mapCenterLon`
 
-After the test, turn the simulator back off using Reset all.
+Starting longitude.
 
-### Admin download
+`mapZoom`
 
-Open the media item. A normal item downloads from Supabase. A Drive-only fallback item opens its Drive backup link.
+Starting zoom level.
 
-## 6. Backup behaviour
+### Locations
 
-A normal successful upload follows this path:
-
-`Phone -> Supabase Storage`
-
-Then the Apps Script worker copies the same file to:
-
-`Google Drive / JOTA-JOTI Camera Backup`
-
-The submission records the provider as `DUAL` after the backup is confirmed.
-
-If Supabase reports a storage/capacity problem while the original file is still on the phone, the app uses:
-
-`Phone -> Apps Script -> Google Drive`
-
-The app polls Supabase for the backup confirmation before deleting the local file. If confirmation does not arrive, the local file remains and the app retries the Drive-only path later.
-
-## 7. Common fixes
-
-**Admin says the account is not an organiser:** run the SQL again and make sure the Auth user's email exactly matches `jota.joti.boulder@gmail.com`.
-
-**Backup page says waiting:** check that Apps Script is deployed as a Web app, the URL in `backend.js` is the `/exec` URL, and `setup()` completed successfully. Then open Organiser -> Google backup -> Run backup now.
-
-**Camera does not work:** use the HTTPS GitHub Pages address and allow camera/microphone permissions.
-
-**The app looks old after a deployment:** close all tabs of the site, open the site again, and reload once. The service worker cache version has been bumped for this build.
-
-**Supabase rejects a file as too large:** the site now enforces a 30 MB media cap. Shorten the recording or lower the configured video quality.
-
-## 8. Files you should keep
-
-`setup/supabase-setup.sql` is the database setup.
-
-`google-apps-script/Code.gs` is the Drive backup worker.
-
-`backend.js` contains the browser-safe project configuration.
-
-Do not add the organiser password to any of these files.
-
-## 9. Official setup references
-
-Supabase anonymous sign-in: https://supabase.com/docs/guides/auth/auth-anonymous
-
-Supabase database quickstart: https://supabase.com/docs/guides/database/
-
-Supabase Storage: https://supabase.com/docs/guides/storage
-
-Google Apps Script web apps: https://developers.google.com/apps-script/guides/web
-
-Google Apps Script deployment: https://developers.google.com/apps-script/concepts/deployments
-
-GitHub Pages: https://docs.github.com/en/pages
-
-
-## Google Sheet map source
-
-`setup()` creates two sheets named **Map Settings** and **Locations**. The public app reads the map configuration through the Apps Script web app and caches the data so the locations remain available without internet. Apps Script also mirrors the current location rows into Supabase every five minutes.
-
-### Map Settings sheet
-
-Columns: `Key | Value | Description`
-
-Use these rows:
-
-| Key | What to enter |
-| --- | --- |
-| `mapUrl` | A Google Maps URL for the event/map |
-| `mapTileUrl` | Tile URL used by the lightweight in-app map |
-| `mapCenterLat` | Starting latitude |
-| `mapCenterLon` | Starting longitude |
-| `mapZoom` | Starting zoom |
-
-Google Maps URLs support `api=1` and can be used as a direct cross-platform map link.
-
-### Locations sheet
-
-Columns, in this exact order:
+The columns must stay in this order:
 
 `ID | Name | Description | Instructions | Latitude | Longitude | Category | Icon | Points | PhotoRequired | VideoAllowed | Active | ChallengeNumbers`
 
-Leave **ID** blank when you add a new location. The Apps Script creates a UUID automatically. Enter latitude/longitude as decimal degrees. Use `true` or `false` in the Yes/No fields. Put challenge numbers in `ChallengeNumbers`, for example `1, 4, 12`.
+For a new location, leave `ID` blank. Apps Script generates the ID.
 
-The **Map pins** page in Admin edits Supabase locations directly, with click-to-place and draggable markers. Each successful save immediately attempts to mirror the pin to Google Sheets. The page also provides explicit Pull from Google Sheet and Push pins to Sheet controls for reconciliation.
+Latitude and longitude are decimal degrees.
 
+Use `true` or `false` for `PhotoRequired`, `VideoAllowed` and `Active`.
 
-## GitHub root upload
-This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. Runtime files are intentionally at the repository root. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
+Put challenge numbers in `ChallengeNumbers`, for example:
 
-## UI and permission behavior
-After a participant enters their name, the app immediately requests camera and microphone access. Camera access is required for the camera screen; microphone access is treated as optional so the participant can still continue if microphone permission is denied.
+`1, 4, 12`
 
-When installed as a PWA, the camera header and bottom navigation use the device safe-area insets so controls are not placed under a notch, status area, or home indicator.
+The participant Map tab groups challenges at their location and opens the relevant photo/video actions when a challenge marker is tapped.
 
-The participant navigation contains Camera, Map, Challenges and My posts. The old A/admin button is not shown in the participant app.
+## 6. GitHub Pages
 
-When the phone exposes hardware zoom controls, the camera shows quick 1x and 2x buttons and also supports pinch/slider zoom.
+Upload the contents of this package into the root of the GitHub repository. Do not upload the ZIP itself.
 
+`index.html` must be directly in the repository root.
 
-## Map setup
+Keep all JavaScript, CSS, images, `Code.gs`, `supabase-setup.sql`, `manifest.webmanifest` and `sw.js` at the root. This build deliberately does not depend on `js/`, `css/`, `icons/`, `setup/` or `google-apps-script/` folders.
 
-The built-in map opens centred on Kalgoorlie, Western Australia. The organiser Google Sheet remains the source of truth for public event locations, with Supabase used as the authenticated admin copy and participant fallback when Apps Script is unavailable.
+In GitHub open **Settings -> Pages**.
 
-In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to attach challenge numbers to a location. Those challenges then appear on the map and can launch the camera directly.
+Choose:
 
+`Deploy from a branch`
 
-## GitHub layout
-Upload every file in this package directly into the repository root. The production package intentionally contains no runtime subfolders. The organiser page is `admin.html`; `/admin` and `/admin/` redirect to it through the root `404.html`.
+`main`
+
+`/(root)`
+
+Save.
+
+GitHub's current Pages quickstart is here: https://docs.github.com/en/pages/quickstart
+
+The public app is the repository Pages URL. The organiser app is `admin.html`. The included `404.html` keeps `/admin` and `/admin/` working on GitHub Pages.
+
+## 7. First organiser login
+
+Open `admin.html` or `/admin/` from the published site.
+
+Log in with the organiser Auth account.
+
+Use the admin pages to set the competition settings, map locations, challenges and sounds.
+
+The participant app never receives the organiser password.
+
+## 8. Install recommendation
+
+The public app is a PWA. On supported browsers it will show:
+
+**Recommended: add JOTA-JOTI to your home screen for the best full-screen camera experience.**
+
+On iPhone/iPad the install sheet gives the Safari Add to Home Screen steps. On supported Chromium browsers it uses the install prompt when the browser offers one.
+
+There is no dark mode in the participant app. The normal pages always use the light colour system. The camera/review surfaces use a dark viewfinder/control layer so white camera controls stay readable over photos.
+
+## 9. Camera behaviour
+
+After a participant enters their name, the app asks for camera and microphone access. Camera access is required for the live camera. Microphone access is optional for opening the camera, and a blocked microphone is explained when video recording is attempted.
+
+The camera is full-bleed and uses the same crop for the saved photo that the participant saw in the viewfinder. The app prefers a 4:3 camera stream and crops it to the live viewfinder rather than saving a different framing.
+
+The shutter works in both ways:
+
+Tap for a photo.
+
+Hold for a video. Releasing stops the recording.
+
+The app also uses hardware zoom controls when the browser exposes them, supports pinch/slider zoom, uses the torch when the phone exposes it, and can switch between the front and rear cameras.
+
+## 10. Upload and backup behaviour
+
+A submitted post is first saved locally in IndexedDB so the participant does not lose it when the connection is slow or disappears.
+
+When the connection is available, the uploader sends the file to Supabase in chunks and waits for Supabase to confirm the final upload.
+
+After Supabase accepts the file, Apps Script copies the uploaded object into the Google Drive backup folder.
+
+If Supabase storage is full or reports a capacity error while the original file is still on the phone, the uploader uses the direct Drive fallback through Apps Script.
+
+The participant's local large file is only removed after the app sees a confirmed Drive backup state. If the confirmation does not arrive, the local file is kept and the uploader retries later.
+
+## 11. Offline mode
+
+The app uses a service worker for the application shell and a local cache for the last known map data. Photos and videos are kept in IndexedDB rather than in the service worker cache.
+
+To test this, open the app once while online, then enable flight mode. Capture and submit a small photo. The app should say it is saved on the phone. Turn the network back on and leave the app open until the upload completes.
+
+## 12. Pre-event check
+
+Do these tests on a real phone using the HTTPS GitHub Pages site.
+
+Capture and submit one photo.
+
+Record and submit one short video.
+
+Open Map and confirm that your Sheet locations appear.
+
+Tap a location and confirm that the challenge/location actions open.
+
+Open My posts and confirm the saved media appears.
+
+Enable flight mode and submit a small photo, then restore the network and confirm the queue drains.
+
+Open organiser -> Google backup and confirm successful Drive copies are recorded.
+
+## 13. Troubleshooting
+
+**The app stays on Loading.**
+
+Open the browser console and look for the first JavaScript error. The package has local syntax checks for all JavaScript files, so a live startup error is usually a configuration, browser or deployment issue rather than a missing script path.
+
+**Camera does not open.**
+
+Make sure the site is running on HTTPS and the browser has camera permission for the site. Close other apps using the camera and reload.
+
+**The map is blank.**
+
+The app first shows the saved map and pins it already knows. When online it refreshes from the Sheet. Check `Map Settings`, the `Locations` sheet and the Apps Script web-app URL in `backend.js`.
+
+**Admin login works but the user is not an organiser.**
+
+The email of the Auth user must match the organiser email listed in the SQL/admin configuration. Run the SQL again if the `admins` row has not been created.
+
+**Backups are stuck.**
+
+Check `Backup Health`, the Apps Script execution history and the `Backups`/`Backup Errors` sheets. Confirm `setup()` ran successfully and that the current web-app deployment points to the latest code.
+
+**The site still looks like an older version.**
+
+The service worker has a versioned shell cache. Close old tabs, open the current Pages address again and reload once.
+
+## 14. Security rules
+
+Do not put the organiser password into GitHub.
+
+Do not put the password into `supabase-setup.sql`.
+
+Do not put the password into `backend.js`.
+
+Do not put a Supabase service-role key into the public site.
+
+The browser-safe Supabase key is a publishable key. Access is enforced by Supabase Auth and Row Level Security.
+
+## Official references
+
+Supabase anonymous sign-ins: https://supabase.com/docs/guides/auth/auth-anonymous
+
+Supabase users: https://supabase.com/docs/guides/auth/users
+
+Google Apps Script web apps: https://developers.google.com/apps-script/guides/web
+
+Google Apps Script Properties: https://developers.google.com/apps-script/guides/properties
+
+GitHub Pages quickstart: https://docs.github.com/en/pages/quickstart

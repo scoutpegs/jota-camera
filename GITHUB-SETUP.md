@@ -1,44 +1,53 @@
-# GitHub repository setup
+# GitHub Pages setup
 
-This package is ready to be copied into a new GitHub repository. It uses relative paths, so the repository name can change without changing the camera, admin, CSS, icons or service-worker paths.
+This package is already laid out for a root-level GitHub Pages deployment.
 
 ## 1. Create the repository
 
-Open https://github.com/new
+Create a GitHub repository under the account or organisation that should publish the site.
 
-Create the repository under the GitHub account/organisation you want to use. A repository name such as `jota-joti-camera` is fine.
-
-Do not add a second README, `.gitignore` or licence if you are going to upload this package as-is.
+A repository name such as `jota-joti-camera` is fine. The code uses relative paths, so the repository name does not need to be written into every JavaScript file.
 
 ## 2. Upload the package
 
-Upload the contents of this folder, not the ZIP file itself. `index.html` must be in the repository root.
+Upload the **contents** of this package, not the ZIP file.
 
-You should see roughly:
+`index.html` must be directly in the repository root.
+
+The important root files are:
 
 ```text
 index.html
 admin.html
-admin.css
-admin.js
+404.html
 app.css
+admin.css
 main.js
+camera-ui.js
+camera.js
+map-view.js
+tilemap.js
+supa.js
 backend.js
+Code.gs
+supabase-setup.sql
+manifest.webmanifest
 sw.js
-manifest.webmanifest
-manifest.webmanifest
-.nojekyll
 ```
+
+The PNG files must also stay in the root.
+
+Do not create `css/`, `js/`, `icons/`, `setup/` or `google-apps-script/` folders for this build.
 
 ## 3. Commit to main
 
 Commit all files to the `main` branch.
 
-## 4. Turn on GitHub Pages
+## 4. Enable GitHub Pages
 
-Open repository Settings -> Pages.
+Open repository **Settings -> Pages**.
 
-Choose:
+Set:
 
 ```text
 Source: Deploy from a branch
@@ -48,39 +57,28 @@ Folder: / (root)
 
 Save.
 
-Official instructions: https://docs.github.com/en/pages/quickstart
+GitHub's current guide is: https://docs.github.com/en/pages/quickstart
 
-## 5. Site addresses
+## 5. Public and organiser pages
 
-Your participant site will be:
+Public:
 
-`https://<github-account-or-org>.github.io/<repository-name>/`
+`https://<account-or-org>.github.io/<repository>/`
 
-The organiser page will be:
+Organiser:
 
-`https://<github-account-or-org>.github.io/<repository-name>/admin.html`
+`https://<account-or-org>.github.io/<repository>/admin.html`
 
-The app uses relative URLs, so changing the repository name does not require code changes.
+The included `404.html` keeps `/admin` and `/admin/` usable on GitHub Pages.
 
-## 6. Required backend setup
+## 6. Backend before event use
 
-Before real use, finish `SETUP.md` so Supabase, the organiser account, Apps Script and Google Drive backup are configured.
+Finish `SETUP.md` before giving participants the public link. The site requires Supabase Auth/SQL and the Apps Script Drive backup deployment to be configured.
 
+## 7. Service worker cache
 
-## GitHub root upload
-This build is intentionally flat. Upload the files directly into the repository root. Do not create css/, js/, icons/, or admin/ folders. Runtime files are intentionally at the repository root. The site uses root-relative files such as app.css, main.js, logo.png, and admin.html.
+This build uses:
 
+`v21-full-ui-light-map-backup`
 
-## Map setup
-
-The built-in map opens centred on Kalgoorlie, Western Australia. The organiser Google Sheet remains the source of truth for public event locations, with Supabase used as the authenticated admin copy and participant fallback when Apps Script is unavailable.
-
-In the Google Sheet `Locations` sheet, use the `ChallengeNumbers` column to attach challenge numbers to a location. Those challenges then appear on the map and can launch the camera directly.
-
-
-## Upload layout
-Upload the contents of this package directly into the GitHub repository root. The runtime does not depend on css/js/icons subfolders.
-
-
-## GitHub layout
-Upload every file in this package directly into the repository root. The production package intentionally contains no runtime subfolders. The organiser page is `admin.html`; `/admin` and `/admin/` redirect to it through the root `404.html`.
+After publishing an update, close old tabs and reopen the GitHub Pages address so the new service-worker shell can take over.

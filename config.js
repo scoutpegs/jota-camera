@@ -10,7 +10,7 @@ export const DEFAULTS = {
   micMode: 'mix', mediaNotice: '', aButtonLabel: 'A', aButtonUrl: '',
   tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   mapUrl: 'https://www.google.com/maps/search/?api=1&query=Kalgoorlie%2C%20Western%20Australia',
-  mapCenterLat: -30.7489, mapCenterLon: 121.4658, mapZoom: 13, offlineAudio: false,
+  mapCenterLat: -30.7489, mapCenterLon: 121.4658, mapZoom: 14, offlineAudio: false,
 };
 export const cfg = { ...DEFAULTS };
 export let serverOffsetMs = 0; // server clock minus phone clock

@@ -19,12 +19,25 @@ export async function createDraft({ id = uuid(), blob, thumb, audioBlob, mediaTy
     hasThumb: !!thumb, hasAudio: !!audioBlob, recovered,
     status: 'DRAFT', progress: 0, attempts: 0, nextTry: 0, userMessage: '', lastError: '', createdAt: new Date().toISOString(), uploadedAt: null, backupStatus: 'PENDING', storageProvider: 'LOCAL', backupUrl: '',
   };
+  let mediaSaved = false;
   try {
+    // The original capture is mandatory. Optional thumbnail/audio files must never make
+    // an otherwise valid photo/video disappear when the phone is short on storage.
     await db.put('media', blob, id);
-    if (thumb) await db.put('media', thumb, id + ':thumb');
-    if (audioBlob) await db.put('media', audioBlob, id + ':audio');
+    mediaSaved = true;
+    if (thumb) {
+      try { await db.put('media', thumb, id + ':thumb'); }
+      catch { sub.hasThumb = false; }
+    }
+    if (audioBlob) {
+      try { await db.put('media', audioBlob, id + ':audio'); }
+      catch { sub.hasAudio = false; }
+    }
     await db.put('submissions', sub);
   } catch (e) {
+    if (mediaSaved) {
+      await Promise.all([id, id + ':thumb', id + ':audio'].map((k) => db.del('media', k).catch(() => {})));
+    }
     const p = storageProblem(e);
     const err = new Error(p.text); err.storage = true; err.full = p.full; err.cause = e;
     throw err;

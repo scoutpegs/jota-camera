@@ -1,5 +1,5 @@
 // App shell: starts everything, owns the tabs, the top bar, the bottom nav and back-button behaviour.
-import { $, el, icon, toast, choose } from './util.js';
+import { $, el, icon, toast, choose, sheet } from './util.js';
 import { openDb, requestPersistence, storageProblem } from './db.js';
 import { loadIdentity, identity } from './identity.js';
 import { cfg, loadConfig } from './config.js';
@@ -10,10 +10,12 @@ import { recoverInterruptedRecording, clearActiveRec } from './camera.js';
 import { createDraft, getSub, discard, pendingCount, events as subEvents } from './submissions.js';
 import * as uploader from './uploader.js';
 import { debug } from './debug.js';
+import { isStandalone, installPanel, installDismissed, dismissInstall } from './install.js';
 
 const TABS = ['camera', 'map', 'challenges', 'posts', 'settings'];
-const NAV = [['camera', 'Camera', 'camera'], ['map', 'Map', 'map'], ['challenges', 'Challenges', 'flag'], ['posts', 'My posts', 'posts']];
+const NAV = [['map', 'Map', 'map'], ['challenges', 'Challenges', 'flag'], ['camera', 'Camera', 'camera'], ['posts', 'My posts', 'posts'], ['settings', 'Settings', 'gear']];
 const mounted = {};
+const routeStack = [];
 const factories = {
   camera: async (root) => mountCamera(root, app),
   review: async (root) => (await import('./review.js')).mountReview(root, app),
@@ -78,6 +80,7 @@ if (window.visualViewport) {
 
 export const app = {
   cfg, view: null, params: {},
+  back: goBack,
   ctx: { mode: 'photo', challenge: null, sound: null },
   go, refreshWho,
   openReview: (id) => go('review', { id }),
@@ -108,6 +111,8 @@ async function setView(name, params = {}) {
   const root = document.getElementById('v-' + name);
   root.classList.add('active');
   app.view = name; app.params = params;
+  const globalBack = $('#global-back');
+  if (globalBack) globalBack.hidden = name === 'onboard' || (name === 'camera' && routeStack.length === 0);
   if (!mounted[name]) mounted[name] = await factories[name](root);
   if (app.view !== name) return; // navigated away while loading
   mounted[name].show && await mounted[name].show(params);
@@ -122,10 +127,20 @@ async function setView(name, params = {}) {
 }
 
 function go(name, params = {}, { replace = false } = {}) {
+  const same = app.view === name && JSON.stringify(app.params || {}) === JSON.stringify(params || {});
+  if (same) return setView(name, params);
+  if (app.view && !replace && app.view !== name) routeStack.push({ name: app.view, params: { ...(app.params || {}) } });
+  if (replace && name === 'camera' && !(params && params.id)) routeStack.length = 0;
   const st = { name, params };
-  if (replace || TABS.includes(name)) history.replaceState(st, '', hashFor(name, params));
+  if (replace) history.replaceState(st, '', hashFor(name, params));
   else history.pushState(st, '', hashFor(name, params));
   return setView(name, params);
+}
+
+async function goBack() {
+  const prev = routeStack.pop();
+  if (prev) return go(prev.name, prev.params, { replace: true });
+  if (app.view && app.view !== 'camera') return go('camera', {}, { replace: true });
 }
 
 window.addEventListener('popstate', async (e) => {
@@ -135,6 +150,7 @@ window.addEventListener('popstate', async (e) => {
     return r;
   }
   const st = e.state || parseHash();
+  if (routeStack.length) routeStack.pop();
   setView(st.name, st.params || {});
 });
 
@@ -142,8 +158,14 @@ window.addEventListener('popstate', async (e) => {
 function refreshWho() {
   const me = identity();
   const who = $('#who');
+  const back = $('#global-back');
   who.textContent = me ? 'Recording as ' + me.name : '';
   who.onclick = () => go('settings');
+  if (back) {
+    back.replaceChildren(icon('back'), el('span', {}, 'Back'));
+    back.onclick = () => goBack();
+    back.hidden = app.view === 'camera' || !app.view;
+  }
 }
 
 function buildNav() {
@@ -152,6 +174,24 @@ function buildNav() {
   const posts = nav.querySelector('#nav-posts');
   posts.append(el('span', { class: 'badge', id: 'posts-badge', hidden: true }));
   nav.hidden = false; $('#topbar').hidden = false;
+  buildInstallBanner();
+}
+
+function buildInstallBanner() {
+  if (isStandalone() || installDismissed() || document.getElementById('install-banner')) return;
+  let panel = null;
+  const open = () => {
+    panel = sheet(installPanel({
+      onContinue: () => panel?.close(),
+      continueLabel: 'Close'
+    }), { label: 'Add JOTA-JOTI to your home screen' });
+  };
+  const bar = el('div', { id: 'install-banner', role: 'region', 'aria-label': 'Install recommendation' },
+    el('span', { class: 'ib-text' }, el('b', {}, 'Recommended: '), 'add JOTA-JOTI to your home screen for the best full-screen camera experience.'),
+    el('button', { class: 'ib-btn', type: 'button', onclick: open }, 'Show me'),
+    el('button', { class: 'ib-x', type: 'button', 'aria-label': 'Dismiss install recommendation', onclick: () => { dismissInstall(); bar.remove(); } }, icon('close'))
+  );
+  $('#topbar').after(bar);
 }
 
 async function updateStatus() {

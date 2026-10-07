@@ -114,14 +114,13 @@ async function enumerateLensOptions() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videos = devices.filter((d) => d.kind === 'videoinput');
     return videos.map((d) => {
-      let caps = {};
-      try { caps = typeof d.getCapabilities === 'function' ? (d.getCapabilities() || {}) : {}; } catch { /* optional */ }
+      // MediaDeviceInfo does not expose track capabilities. Use the label/group to
+      // identify a likely physical lens here; the active MediaStreamTrack capabilities
+      // are inspected separately after the camera is opened.
       const label = d.label || 'Camera';
       const kind = classifyCameraLabel(label);
-      const minZoom = Number(caps.zoom?.min);
-      const maxZoom = Number(caps.zoom?.max);
-      const ultraWide = /ultra.?wide|wide.?angle|0[.,]?5x|0[.,]?5|13mm|14mm|15mm/.test(label.toLowerCase()) || (Number.isFinite(minZoom) && minZoom <= 0.5);
-      return { deviceId: d.deviceId, groupId: d.groupId || '', label, kind, ultraWide, minZoom: Number.isFinite(minZoom) ? minZoom : null, maxZoom: Number.isFinite(maxZoom) ? maxZoom : null };
+      const ultraWide = /ultra.?wide|wide.?angle|0[.,]?5x|0[.,]?5|13mm|14mm|15mm/.test(label.toLowerCase());
+      return { deviceId: d.deviceId, groupId: d.groupId || '', label, kind, ultraWide, minZoom: null, maxZoom: null };
     });
   } catch { return []; }
 }

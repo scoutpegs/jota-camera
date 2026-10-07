@@ -87,6 +87,7 @@ const ICONS = {
   play: '<path d="M7 5v14l12-7z"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
+  back: '<path d="M19 12H5M11 18l-6-6 6-6"/>',
   check: '<path d="m5 12 5 5 9-10"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',
   pin: '<path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>',

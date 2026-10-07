@@ -1,40 +1,57 @@
-# JOTA-JOTI Camera - production hardening report
+# JOTA-JOTI Camera production hardening report
 
-This iteration focuses on reliable map editing, camera lens handling, framing, stabilization and responsive layout. Runtime files remain flat at the GitHub repository root.
+This build is a cleaned, flat-root production package for the Kalgoorlie Scout Group JOTA-JOTI camera app.
 
-## Configuration
-- Supabase: `https://fyplxwxwrkilzdhaaftr.supabase.co`
-- Apps Script: `https://script.google.com/macros/s/AKfycbxvOz7yfWfznj3E0q5ZuFL3tJRyBP2Z5C-1Ia-2Mla1EdOoKQxjOeIgULX89ciF7NR8/exec`
-- Default map: Kalgoorlie, Western Australia (`-30.7489, 121.4658`)
+## Final design
 
-## Automated checks
-- 29 JavaScript files: syntax PASS
-- ES module relative imports: PASS
-- HTML local asset references: PASS
-- Runtime subdirectories: 0
-- Dark-mode media queries: 0
-- Pulse-animation references: 0
-- Supabase/Apps Script configuration wiring: PASS
-- Admin map loads Supabase first and Sheet second: PASS
-- Admin click-to-place pin: PASS
-- Admin draggable pin: PASS
-- Admin save → Supabase → Google Sheet mirror: PASS (static code-path check)
-- Admin Pull from Sheet: PASS (static code-path check)
-- Admin Push pins to Sheet: PASS (static code-path check)
-- `ChallengeNumbers` retained through the map-pin editor: PASS
-- Review X discard action: PASS
-- Camera stabilization capability detection: PASS
-- `imageStabilizationMode` constraint path: PASS
-- `contentHint` motion fallback: PASS
-- Device camera enumeration/lens detection: PASS
-- 0.5x only shown when the camera exposes an ultra-wide/0.5 capability: PASS
-- 1x/2x switch back to main camera when a separate ultra-wide was active: PASS
-- Camera source aspect preference 4:3 for wider portrait field of view: PASS
-- Exact viewfinder crop path: PASS
-- Safe-area/dynamic viewport handling: PASS
-- ZIP extraction/integrity: PASS
+- Light-only participant application.
+- Purple action colour with amber for active/selected states.
+- Full-screen camera with a Snapchat-style control arrangement: top utility controls, challenge chip, lens/mode controls, large shutter and bottom navigation.
+- Stable button sizing and pressed states with no jump/scale interaction.
+- Safe-area and dynamic viewport handling for installed phone apps.
+- Install recommendation for the home screen/PWA experience.
 
-## Real-device caveat
-The browser APIs intentionally expose camera capabilities only to the degree supported by the browser and hardware. Lens labels/capabilities can be unavailable or incomplete, especially before permission. The app therefore detects what the browser reports and only presents 0.5x when it has a usable basis for it. It requests hardware/browser stabilization where exposed and avoids a heavy software stabilizer that could add latency or power use.
+## Camera
 
-A physical acceptance test is still required on the actual iPhone/iPad/Android devices used at the event for camera, microphone, GPS and lens switching.
+The camera prefers a portrait-friendly 4:3 source, uses the same crop in the viewfinder and saved photo, supports tap-photo and hold-video, detects supported zoom/torch/lenses, and cleans up the camera stream when the view is left.
+
+## Map
+
+The organiser Google Sheet is the map source for the public app. `Map Settings` supplies the map URL and initial centre/zoom. `Locations` supplies the location list, coordinates, categories, points, active state and challenge-number links.
+
+The public map first uses cached locations where available, then refreshes from Apps Script. The in-app map has touch pan, pinch/wheel zoom, locate, a list view and a visual parent-tile fallback while fresh tiles load.
+
+Default event centre: Kalgoorlie, Western Australia (`-30.7489, 121.4658`).
+
+## Backup
+
+Normal storage:
+
+`Phone -> Supabase Storage -> Google Drive`
+
+Capacity fallback:
+
+`Phone -> Apps Script -> Google Drive`
+
+The phone keeps the original media until the required backup confirmation is seen. The Apps Script fallback validates the submission ID, size, MIME type, file count and decoded base64 size before writing to Drive.
+
+## Security configuration
+
+The package contains only the browser-safe Supabase publishable key and the non-secret Apps Script client key. The organiser password is intentionally excluded and must be stored in Apps Script Script Properties as `SUPABASE_PASSWORD`.
+
+## Static checks
+
+- JavaScript syntax: PASS.
+- Apps Script syntax check: PASS through a temporary Node-compatible copy.
+- Relative imports and local assets: PASS.
+- Service-worker shell: PASS.
+- PWA manifest JSON: PASS.
+- No participant dark-mode CSS rules: PASS.
+- No looping/pulse animations in participant CSS: PASS.
+- No organiser password literal: PASS.
+- Flat root deployment layout: PASS.
+- Final ZIP extraction/integrity: PASS.
+
+## Physical-device note
+
+Real iPhone/iPad/Android camera, microphone, GPS, torch and hardware-lens behaviour must still be checked on the actual event devices. The build environment blocked the final local-browser smoke test, so this report does not claim a successful hardware run.

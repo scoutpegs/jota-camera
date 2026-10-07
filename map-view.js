@@ -6,6 +6,7 @@ import { TileMap } from './tilemap.js';
 import { getPins, getChallenges } from './data.js';
 import { onFix, lastFix, startWatch, stopWatch } from './location.js';
 import { doneIds } from './challenges.js';
+import { cache } from './db.js';
 
 export function googleMapsSearchUrl(p) {
   const query = `${Number(p.latitude).toFixed(6)},${Number(p.longitude).toFixed(6)}`;
@@ -153,6 +154,14 @@ export function mountMap(root, app) {
       startWatch(); off && off();
       off = onFix((f) => { if (map) map.setUser(f); });
       if (lastFix()) map.setUser(lastFix());
+      if (!pins.length) {
+        const quick = await cache.get('pins').catch(() => null);
+        if (Array.isArray(quick) && quick.length) {
+          pins = quick;
+          paint();
+          if (!initialViewSet) map.fitTo(pins.map((x) => ({ lat: Number(x.latitude), lon: Number(x.longitude) })));
+        }
+      }
       const [p, c, d] = await Promise.all([getPins(), getChallenges(), doneIds()]);
       pins = p.items; challenges = c.items; done = d;
       banner.hidden = !(p.offline || navigator.onLine === false);

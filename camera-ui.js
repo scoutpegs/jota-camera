@@ -3,7 +3,7 @@ import { el, icon, toast, haptic, fmtClock } from './util.js';
 import { cfg } from './config.js';
 import { Camera, CameraError, clearActiveRec } from './camera.js';
 import { getFix, startWatch, stopWatch, permissionState, supported as gpsSupported, isDenied } from './location.js';
-import { createDraft } from './submissions.js';
+import { createDraft, listSubs, getThumb } from './submissions.js';
 import { getSoundBlob } from './audio.js';
 import { openSounds } from './sounds.js';
 import { pickChallenge } from './challenges.js';
@@ -46,7 +46,7 @@ export function mountCamera(root, app) {
   const ringSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   ringSvg.setAttribute('class', 'ring'); ringSvg.setAttribute('viewBox', '0 0 86 86'); ringSvg.append(ring);
   const core = el('span', { class: 'core' });
-  const shutter = el('button', { class: 'shutter', id: 'shutter', 'aria-label': 'Take photo', onclick: onShutter }, ringSvg, core);
+  const shutter = el('button', { class: 'shutter', id: 'shutter', 'aria-label': 'Take photo. Hold to record video.', title: 'Tap for a photo · hold for video', type: 'button' }, ringSvg, core);
   const modePhoto = el('button', { id: 'mode-photo', 'aria-pressed': 'true', onclick: () => setMode('photo') }, 'PHOTO');
   const modeVideo = el('button', { id: 'mode-video', 'aria-pressed': 'false', onclick: () => setMode('video') }, 'VIDEO');
   const modes = el('div', { class: 'modes', role: 'group', 'aria-label': 'Camera mode' }, modePhoto, modeVideo);
@@ -54,6 +54,10 @@ export function mountCamera(root, app) {
   // Native capture fallback for browsers where getUserMedia/MediaRecorder is unavailable.
   // On supported phones this can also hand off to the OS camera picker, which is more
   // reliable than blocking the participant from capturing anything.
+  const latestThumbImg = el('img', { class: 'capture-thumb-image', alt: '' });
+  const latestThumb = el('button', { class: 'capture-thumb', type: 'button', 'aria-label': 'Open My posts', onclick: () => app.go('posts'), hidden: true }, latestThumbImg);
+  const shutterStack = el('div', { class: 'shutter-stack' }, shutter, latestThumb);
+  let latestThumbUrl = '';
   const nativeCapture = el('input', { type: 'file', accept: 'image/*,video/*', capture: 'environment', hidden: true, 'aria-label': 'Use device camera' });
 
   const stage = el('div', { class: 'cam-stage' }, video, el('div', { class: 'vf' }, el('i'), el('i'), el('i'), el('i')), flashEl, readout,
@@ -63,9 +67,29 @@ export function mountCamera(root, app) {
     ),
     zoomBar,
     zoomPresets,
-    el('div', { class: 'cam-bottom' }, el('div', { class: 'camera-mode-row' }, modes), el('div', { class: 'shutter-row' }, soundBtn, shutter, flipBtn)),
+    el('div', { class: 'cam-bottom' }, el('div', { class: 'camera-mode-row' }, modes), el('div', { class: 'shutter-row' }, soundBtn, shutterStack, flipBtn)),
     gate);
   root.append(stage, nativeCapture);
+
+  function clearLatestThumb() {
+    if (latestThumbUrl) { try { URL.revokeObjectURL(latestThumbUrl); } catch {} latestThumbUrl = ''; }
+    latestThumbImg.removeAttribute('src'); latestThumb.hidden = true;
+  }
+  function setLatestThumb(blob) {
+    if (!blob) return;
+    clearLatestThumb();
+    latestThumbUrl = URL.createObjectURL(blob);
+    latestThumbImg.src = latestThumbUrl;
+    latestThumb.hidden = false;
+  }
+  async function loadLatestThumb() {
+    try {
+      const recent = (await listSubs()).find((s) => s.hasThumb);
+      if (!recent) return;
+      const blob = await getThumb(recent.id);
+      if (blob) setLatestThumb(blob);
+    } catch { /* optional camera gallery preview */ }
+  }
 
   /* ---------- state -> screen ---------- */
   function refresh() {
@@ -97,8 +121,8 @@ export function mountCamera(root, app) {
   }
   function applyCaps() {
     torchBtn.hidden = !cam.caps.torch; torchBtn.setAttribute('aria-pressed', 'false');
-    zoomBtn.hidden = !cam.caps.zoom && !cam.caps.ultraWide;
-    zoomPresets.hidden = !cam.caps.zoom && !cam.caps.ultraWide;
+    zoomBtn.hidden = !cam.active || (!cam.caps.zoom && !cam.caps.ultraWide);
+    zoomPresets.hidden = !cam.active;
     if (cam.caps.zoom) { const z = cam.caps.zoom; Object.assign(zoomRange, { min: z.min, max: z.max, step: z.step, value: z.value }); }
     zoom05.hidden = !cam.caps.ultraWide;
     zoom2.hidden = !(cam.caps.zoom && Number(cam.caps.zoom.max) >= 2);
@@ -126,6 +150,9 @@ export function mountCamera(root, app) {
       const target = Math.min(z.max, Math.max(z.min, base * multiplier));
       zoomRange.value = target;
       await cam.setZoom(target);
+    } else if (multiplier === 1) {
+      // 1× is always a valid camera state even when the browser exposes no manual zoom capability.
+      cam.lensMode = 'default';
     } else {
       toast('That zoom level is not available on this camera.', '');
       return;
@@ -275,6 +302,7 @@ export function mountCamera(root, app) {
       }
       const fix = await fixP;
       const sub = await createDraft({ blob: p.blob, thumb: p.thumb, mediaType: 'photo', mime: p.mime, fix, challenge: app.ctx.challenge });
+      setLatestThumb(p.thumb || p.blob);
       app.openReview(sub.id);
     } catch (e) { app.saveError(e); } finally { busy = false; }
   }
@@ -319,6 +347,7 @@ export function mountCamera(root, app) {
       const thumb = await s.thumb.catch(() => null);
       const fix = await fixP;
       const sub = await createDraft({ id: res.subId, blob: res.blob, thumb, mediaType: 'video', mime: res.mime, duration: res.duration, fix, challenge, sound });
+      setLatestThumb(thumb);
       await clearActiveRec(s.recId);
       if (res.persistProblem) toast('Your phone is low on space, so keep this one safe: post it as soon as you can.', 'bad', 7000);
       else if (res.noMic && !sound) toast('The microphone is blocked, so this video has no sound.', '', 6000);
@@ -326,6 +355,47 @@ export function mountCamera(root, app) {
       else app.openReview(sub.id);
     } catch (e) { app.saveError(e); }
   }
+
+  /* ---------- shutter interactions ---------- */
+  let pressTimer = null, pressHeld = false, pressPointerDown = false, suppressNextClick = false;
+  function clearPressTimer() { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } }
+  async function beginHoldRecord() {
+    if (!pressPointerDown || busy || session || !cam.active) return;
+    pressHeld = true;
+    const fromPhoto = mode === 'photo';
+    if (fromPhoto) setMode('video');
+    await toggleRecord();
+    if (fromPhoto) { mode = 'photo'; app.ctx.mode = 'photo'; }
+    if (!pressPointerDown && session) session.stop();
+  }
+  shutter.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    pressPointerDown = true;
+    try { shutter.setPointerCapture(e.pointerId); } catch {}
+    clearPressTimer();
+    pressTimer = setTimeout(() => { pressTimer = null; beginHoldRecord(); }, 340);
+  });
+  const finishShutterPointer = (e) => {
+    if (!pressPointerDown) return;
+    pressPointerDown = false;
+    clearPressTimer();
+    if (pressHeld) {
+      if (session) session.stop();
+      pressHeld = false;
+      suppressNextClick = true;
+      setTimeout(() => { suppressNextClick = false; }, 500);
+    }
+    try { shutter.releasePointerCapture(e.pointerId); } catch {}
+  };
+  shutter.addEventListener('pointerup', finishShutterPointer);
+  shutter.addEventListener('pointercancel', finishShutterPointer);
+  shutter.addEventListener('pointerleave', (e) => { if (pressPointerDown && e.pointerType !== 'mouse') finishShutterPointer(e); });
+  shutter.addEventListener('click', (e) => {
+    if (suppressNextClick) { e.preventDefault(); suppressNextClick = false; return; }
+    onShutter();
+  });
+  shutter.addEventListener('contextmenu', (e) => e.preventDefault());
 
   /* ---------- gestures: swipe to change mode, pinch to zoom ---------- */
   const ptrs = new Map(); let swipe = null, pinch0 = null, lastTap = 0;
@@ -372,13 +442,15 @@ export function mountCamera(root, app) {
   return {
     async show() {
       visible = true; refresh();
-      if (cam.active) { beginLocation(); return; }
+      if (cam.active) { beginLocation(); loadLatestThumb(); return; }
       if (await shouldAutoStart()) startCam(); else showGate('ask');
+      loadLatestThumb();
     },
     hide() {
       visible = false;
       if (session) { leftWhileRecording = true; session.stop(); document.body.classList.remove('camera-recording'); }
       cam.stopStream();            // never leave the camera or microphone running in the background
+      clearLatestThumb();
       stopWatch();
     },
     refresh,

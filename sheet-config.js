@@ -6,7 +6,7 @@ import { cache } from './db.js';
 let inFlight = null;
 let seq = 0;
 
-export function loadSheetConfig({ force = false, timeout = 7000 } = {}) {
+export function loadSheetConfig({ force = false, timeout = 4000 } = {}) {
   if (!GOOGLE_BACKUP_URL || !GOOGLE_BACKUP_KEY) return Promise.resolve(null);
   if (inFlight && !force) return inFlight;
   inFlight = new Promise((resolve) => {

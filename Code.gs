@@ -403,19 +403,30 @@ function backupSubmission_(submissionId) {
 
 function saveDirectFallback_(body) {
   const id = String(body.submissionId || '');
-  const files = Array.isArray(body.files) ? body.files : [];
-  if (!id || !files.length) throw new Error('Fallback data is incomplete.');
+  const files = Array.isArray(body.files) ? body.files.slice(0, 3) : [];
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !files.length) throw new Error('Fallback data is incomplete.');
+  const rows = restGet_(`submissions?id=eq.${encodeURIComponent(id)}&select=id,participant_name,media_type,mime,size,duration,upload_status,backup_status`);
+  const existing = rows[0];
+  if (!existing) throw new Error('Fallback submission is not registered in Supabase.');
+  if (existing.backup_status === 'DONE') return { ok: true, id, already: true, provider: existing.storage_provider || 'DUAL' };
   const maxBytes = Number(getProp_('MAX_MEDIA_BYTES', DEFAULTS.MAX_MEDIA_BYTES));
   const main = files.find((f) => f.kind === 'media');
   if (!main) throw new Error('Fallback is missing the media file.');
+  if (Number(main.size || 0) !== Number(existing.size || 0)) throw new Error('Fallback size does not match the registered submission.');
   if (Number(main.size || 0) > maxBytes) throw new Error('Fallback media is too large.');
+  if (String(body.mediaType || '') !== String(existing.media_type || '') || String(body.mime || '').split(';')[0] !== String(existing.mime || '').split(';')[0]) {
+    throw new Error('Fallback media details do not match the registered submission.');
+  }
 
   const allowed = new Set(['media', 'thumb', 'audio']);
   const blobs = [];
+  let totalBytes = 0;
   for (const f of files) {
     if (!allowed.has(String(f.kind))) continue;
     const size = Number(f.size || 0);
     if (size < 0 || size > maxBytes) throw new Error(`Invalid ${f.kind} size.`);
+    totalBytes += size;
+    if (totalBytes > maxBytes + 1048576) throw new Error('Fallback request is too large.');
     const b64 = String(f.base64 || '');
     if (!b64) throw new Error(`Missing ${f.kind} data.`);
     const bytes = Utilities.base64Decode(b64);

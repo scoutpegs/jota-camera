@@ -22,11 +22,18 @@ function toError(status, d) {
   return new ApiError(msg === 'TOO_BIG' ? 'That file is too big (30 MB limit)' : msg, { status: st, code: String(code), data: d });
 }
 
-async function http(url, { method = 'GET', headers = {}, body, token } = {}) {
+async function http(url, { method = 'GET', headers = {}, body, token, timeout = 12000 } = {}) {
   let res;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeout) : null;
   try {
-    res = await fetch(url, { method, body, cache: 'no-store', headers: { apikey: K, ...(token ? { authorization: 'Bearer ' + token } : {}), ...headers } });
-  } catch { throw new ApiError('No connection', { network: true }); }
+    res = await fetch(url, { method, body, cache: 'no-store', signal: controller?.signal, headers: { apikey: K, ...(token ? { authorization: 'Bearer ' + token } : {}), ...headers } });
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new ApiError('The connection timed out. Trying again when it is available.', { network: true });
+    throw new ApiError('No connection', { network: true });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
   const text = await res.text();
   let data = null; try { data = text ? JSON.parse(text) : null; } catch { /* not json */ }
   if (!res.ok) throw toError(res.status, data);
@@ -199,7 +206,7 @@ export async function putFile(path, blob, { onProgress, contentType = 'applicati
     x.onload = () => {
       let d = null; try { d = JSON.parse(x.responseText); } catch { /* ignore */ }
       if (x.status >= 200 && x.status < 300) resolve(d || { ok: true });
-      else { const st = Number(d && d.statusCode) || x.status; if (st === 401 && sess) sess.expires_at = 0; reject(toError(st, d)); }
+      else { const st = Number(d && d.statusCode) || x.status; if (st === 401 && s) s.expires_at = 0; reject(toError(st, d)); }
     };
     x.send(blob);
   });
