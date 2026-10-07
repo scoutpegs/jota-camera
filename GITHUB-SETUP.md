@@ -79,7 +79,7 @@ Finish `SETUP.md` before giving participants the public link. The site requires 
 
 This build uses:
 
-`v22-light-ui-final-camera-map`
+`v25-clean-camera-map-location`
 
 After publishing an update, close old tabs and reopen the GitHub Pages address so the new service-worker shell can take over.
 

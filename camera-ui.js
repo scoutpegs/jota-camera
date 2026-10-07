@@ -36,9 +36,8 @@ export function mountCamera(root, app) {
   const readout = el('div', { class: 'readout', id: 'readout', 'aria-live': 'off' }, el('i', { class: 'rd' }), el('span', { id: 'rec-time' }, '00:00'));
   const flashEl = el('div', { class: 'flash' });
 
-  const soundLabel = el('span', {}, 'Sound');
-  const soundBtn = el('button', { class: 'side-btn', id: 'sound-btn', 'aria-label': 'Choose a sound', onclick: chooseSound }, icon('music'), soundLabel);
-  const flipBtn = el('button', { class: 'tool camera-flip', id: 'flip', 'aria-label': 'Switch camera', title: 'Switch camera', onclick: async () => {
+  const soundBtn = el('button', { class: 'tool camera-tool camera-sound', id: 'sound-btn', 'aria-label': 'Choose a sound', title: 'Choose a sound', onclick: chooseSound }, icon('music'));
+  const flipBtn = el('button', { class: 'tool camera-tool camera-flip', id: 'flip', 'aria-label': 'Switch camera', title: 'Switch camera', onclick: async () => {
     try { await cam.flip(); applyCaps(); } catch (e) { toast('Could not switch camera.', 'bad'); } } }, icon('flip'));
   const ring = el('circle', { cx: '43', cy: '43', r: '43' });
   const ringSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -59,14 +58,19 @@ export function mountCamera(root, app) {
   let latestThumbUrl = '';
   const nativeCapture = el('input', { type: 'file', accept: 'image/*,video/*', capture: 'environment', hidden: true, 'aria-label': 'Use device camera' });
 
+  const sideRail = el('div', { class: 'camera-top-actions' }, flipBtn, torchBtn, zoomBtn, soundBtn);
+  const challengeRow = el('div', { class: 'camera-challenge-row' }, el('div', { class: 'row' }, chip, chipX));
   const stage = el('div', { class: 'cam-stage' }, video, el('div', { class: 'vf' }, el('i'), el('i'), el('i'), el('i')), flashEl, readout,
     el('div', { class: 'cam-top' },
-      el('div', { class: 'camera-topline' }, brandMark, el('div', { class: 'camera-top-actions' }, flipBtn, torchBtn, zoomBtn)),
-      el('div', { class: 'camera-challenge-row' }, el('div', { class: 'row' }, chip, chipX))
+      el('div', { class: 'camera-top-left' }, brandMark, challengeRow),
+      sideRail
     ),
     zoomBar,
-    zoomPresets,
-    el('div', { class: 'cam-bottom' }, el('div', { class: 'camera-mode-row' }, modes), el('div', { class: 'shutter-row' }, soundBtn, shutterStack)),
+    el('div', { class: 'cam-bottom' },
+      zoomPresets,
+      el('div', { class: 'camera-mode-row' }, modes),
+      el('div', { class: 'shutter-row' }, latestThumb, shutter, el('span', { class: 'shutter-balance', 'aria-hidden': 'true' }))
+    ),
     gate);
   root.append(stage, nativeCapture);
 
@@ -100,7 +104,9 @@ export function mountCamera(root, app) {
     chipX.hidden = !c;
     const s = app.ctx.sound;
     document.body.classList.toggle('camera-recording', !!session);
-    soundLabel.textContent = s ? s.title : 'Sound';
+    soundBtn.setAttribute('aria-label', s ? `Sound: ${s.title}. Change sound` : 'Choose a sound');
+    soundBtn.title = s ? `Sound: ${s.title}` : 'Choose a sound';
+    soundBtn.classList.toggle('has-sound', !!s);
     const canPhoto = cfg.photosEnabled, canVideo = cfg.videosEnabled;
     modes.hidden = !(canPhoto && canVideo);
     if (!canPhoto && mode === 'photo') mode = 'video';
@@ -108,7 +114,9 @@ export function mountCamera(root, app) {
     modePhoto.setAttribute('aria-pressed', String(mode === 'photo')); modeVideo.setAttribute('aria-pressed', String(mode === 'video'));
     shutter.classList.toggle('video', mode === 'video');
     shutter.setAttribute('aria-label', mode === 'photo' ? 'Take photo' : (session ? 'Stop recording' : 'Start recording'));
-    soundBtn.classList.toggle('empty', mode !== 'video' || !!session);
+    // Music is always available on the camera rail so it is easy to pick before a video starts.
+    // Lock it only during an active recording.
+    soundBtn.classList.toggle('empty', !!session);
     flipBtn.classList.toggle('empty', !cam.caps.flip || !!session);
     video.classList.toggle('mirror', cam.mirrored);
     app.ctx.mode = mode;
@@ -308,12 +316,13 @@ export function mountCamera(root, app) {
 
   async function toggleRecord() {
     if (session) { session.stop(); return; }
+    try { (await import('./audio.js')).unlockAudio(); } catch { /* optional */ }
     if (busy) return; busy = true;
     const fixP = getFix();
     const challenge = app.ctx.challenge, sound = app.ctx.sound;
     let soundBlob = null;
     if (sound) {
-      try { soundBlob = await getSoundBlob(sound); }
+      try { soundBlob = await getSoundBlob(sound); toast(`Music ready: ${sound.title}`, '', 1800); }
       catch (e) { toast(e.message || 'That sound is not available.', 'bad'); busy = false; return; }
     }
     try {

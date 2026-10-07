@@ -98,7 +98,19 @@ export const app = {
 };
 
 function hashFor(name, params) { return '#/' + name + (params && params.id ? '/' + params.id : ''); }
+function normalizeDeepLink() {
+  if (location.hash) return;
+  const parts = location.pathname.split('/').filter(Boolean);
+  const last = String(parts[parts.length - 1] || '').toLowerCase();
+  const routes = new Set(['camera','map','challenges','posts','settings','review','submit']);
+  if (!routes.has(last)) return;
+  const baseParts = parts.slice(0, -1);
+  const base = '/' + baseParts.join('/');
+  const next = (base === '/' ? '/' : base + '/') + '#/' + last + (location.search || '');
+  history.replaceState({ name: last, params: {} }, '', next);
+}
 function parseHash() {
+  normalizeDeepLink();
   const m = /^#\/([a-z]+)(?:\/([0-9a-f-]+))?/.exec(location.hash);
   return m ? { name: m[1], params: m[2] ? { id: m[2] } : {} } : { name: 'camera', params: {} };
 }
@@ -141,6 +153,11 @@ async function goBack() {
   if (app.view && app.view !== 'camera') return go('camera', {}, { replace: true });
 }
 
+window.addEventListener('hashchange', async () => {
+  const st = parseHash();
+  await setView(st.name, st.params || {});
+});
+
 window.addEventListener('popstate', async (e) => {
   if (app.view === 'review') { // Back pressed on an unfinished post: ask, don't just throw it away
     history.pushState({ name: 'review', params: app.params }, '', hashFor('review', app.params)); // stay put
@@ -178,6 +195,7 @@ function buildInstallBanner() {
       continueLabel: 'Close'
     }), { label: 'Add JOTA-JOTI to your home screen' });
   };
+  if (app.view === 'camera' || app.view === 'review' || app.view === 'submit') return;
   document.body.classList.add('install-banner-visible');
   const bar = el('div', { id: 'install-banner', role: 'region', 'aria-label': 'Install recommendation' },
     el('span', { class: 'ib-text' }, el('b', {}, 'Recommended: '), 'add JOTA-JOTI to your home screen for the best full-screen camera experience.'),

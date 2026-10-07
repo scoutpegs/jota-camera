@@ -5,6 +5,7 @@ export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 // el('div', {class:'x', onclick:fn}, 'text', childEl) -- text is always inserted as text, never as HTML.
 export function el(tag, attrs = {}, ...kids) {
   const n = document.createElement(tag);
+  if (String(tag).toLowerCase() === 'button' && attrs?.type == null) n.type = 'button';
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === false || v === null || v === undefined) continue;
     if (k === 'class') n.className = v;
@@ -13,6 +14,7 @@ export function el(tag, attrs = {}, ...kids) {
     else if (k === 'style' && typeof v === 'object') Object.assign(n.style, v);
     else n.setAttribute(k, v === true ? '' : v);
   }
+  if (tag === 'button' && !n.hasAttribute('type')) n.type = 'button';
   for (const kid of kids.flat()) {
     if (kid === null || kid === undefined || kid === false) continue;
     n.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
@@ -76,22 +78,22 @@ export function haptic(ms = 12) { try { navigator.vibrate && navigator.vibrate(m
 
 // SVG icons (simple outlines). Built from our own constants only.
 const ICONS = {
-  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
-  map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',
-  flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
-  posts: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="m4 15 4-4 4 4 3-3 5 5"/>',
-  music: '<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>',
-  flip: '<path d="M4 8V5h3M20 16v3h-3"/><path d="M5 9a8 8 0 0 1 14-2M19 15a8 8 0 0 1-14 2"/>',
-  torch: '<path d="M7 3h10l-1 6H8zM9 9v4l-2 3h10l-2-3V9M12 16v5"/>',
-  zoom: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5M11 8v6M8 11h6"/>',
-  play: '<path d="M7 5v14l12-7z"/>',
+  camera: '<path d="M4 8.5h3l2-3h6l2 3h3v10.5H4z"/><circle cx="12" cy="13.5" r="3.4"/>',
+  map: '<path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>',
+  flag: '<path d="M6 21V4"/><path d="M6 4h11l-2.2 4L17 12H6"/>',
+  posts: '<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.4"/><path d="m5 17 4.5-4.2 3.4 3 2.6-2.4L19 17.5"/>',
+  music: '<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.6"/><circle cx="16.5" cy="16" r="2.6"/>',
+  flip: '<path d="M7 7H4V4"/><path d="M4 7a8 8 0 0 1 13-3"/><path d="M17 17h3v3"/><path d="M20 17a8 8 0 0 1-13 3"/>',
+  torch: '<path d="m9 2 6 2-1.3 5.2L17 13l-4.2 1.2L11 22l-2-1.3 2-6L7 12l2-1.4z"/>',
+  zoom: '<circle cx="10.8" cy="10.8" r="6"/><path d="m15.3 15.3 4.7 4.7M10.8 8v5.6M8 10.8h5.6"/>',
+  play: '<path d="m8 5 11 7-11 7z"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   back: '<path d="M19 12H5M11 18l-6-6 6-6"/>',
-  check: '<path d="m5 12 5 5 9-10"/>',
-  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',
-  pin: '<path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>',
-  share: '<path d="M12 15V3M8 7l4-4 4 4"/><path d="M5 12v8h14v-8"/>',
+  check: '<path d="m5 12 4 4 10-10"/>',
+  gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1"/>',
+  pin: '<path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+  share: '<path d="M12 15V4"/><path d="m8 8 4-4 4 4"/><path d="M5 12v8h14v-8"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   mic: '<rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   locate: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',

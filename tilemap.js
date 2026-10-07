@@ -13,11 +13,11 @@ export function unproject(x, y, z) {
   const n = TILE * 2 ** z;
   return { lon: x / n * 360 - 180, lat: Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI };
 }
-export const tileUrlFor = (tpl, z, x, y) => tpl.replace('{z}', z).replace('{x}', x).replace('{y}', y).replace('{s}', 'a');
+export const tileUrlFor = (tpl, z, x, y, subdomain = 'a') => tpl.replace('{z}', z).replace('{x}', x).replace('{y}', y).replace('{s}', subdomain);
 
 export class TileMap {
   constructor(container, opts = {}) {
-    this.tileUrl = opts.tileUrl || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    this.tileUrl = opts.tileUrl || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     this.lat = opts.lat ?? 0; this.lon = opts.lon ?? 0; this.zoom = opts.zoom ?? 3;
     this.minZoom = opts.minZoom ?? 2; this.maxZoom = opts.maxZoom ?? 19;
     this.onMarkerClick = opts.onMarkerClick; this.onMapClick = opts.onMapClick; this.onMarkerDrag = opts.onMarkerDrag;
@@ -260,11 +260,20 @@ export class TileMap {
     const key = `${z}/${x}/${y}`;
     let t = this.tiles.get(key);
     if (!t) {
-      t = { img: new Image(), ok: false, failed: false };
-      t.img.crossOrigin = 'anonymous';
-      t.img.onload = () => { t.ok = true; this.invalidate(); };
-      t.img.onerror = () => { t.failed = true; };
-      t.img.src = tileUrlFor(this.tileUrl, z, x, y);
+      t = { img: new Image(), ok: false, failed: false, attempt: 0 };
+      const hosts = ['a','b','c'];
+      const load = () => {
+        const url = tileUrlFor(this.tileUrl, z, x, y, hosts[Math.min(t.attempt, hosts.length - 1)]);
+        t.img.onload = () => { t.ok = true; t.failed = false; this.invalidate(); };
+        t.img.onerror = () => {
+          t.attempt += 1;
+          if (t.attempt < hosts.length) { t.img.src = tileUrlFor(this.tileUrl, z, x, y, hosts[t.attempt]); return; }
+          t.failed = true;
+          this.invalidate();
+        };
+        t.img.src = url;
+      };
+      load();
       this.tiles.set(key, t);
       if (this.tiles.size > 400) this.tiles.delete(this.tiles.keys().next().value);
     }

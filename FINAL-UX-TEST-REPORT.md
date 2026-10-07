@@ -19,7 +19,7 @@
 
 - Remote configuration requests are non-blocking during startup.
 - Cached map data is drawn before the online map refresh.
-- Service worker cache version is `v22-light-ui-final-camera-map`.
+- Service worker cache version is `v25-clean-camera-map-location`.
 - Map tiles can use the last visible parent tile while a child tile loads.
 - Optional thumbnails/audio no longer make a main submission fail when local storage is tight.
 - Upload fetch requests have bounded timeouts so a poor connection can fall back to the local queue instead of hanging the interface indefinitely.
@@ -29,6 +29,6 @@
 
 Physical testing is still required for actual camera, microphone, GPS, lens and torch hardware. The build environment could not complete the browser smoke test because local browser navigation was blocked.
 
-## Version 1.3.1 final cleanup
+## Version 1.5.0 final cleanup
 
 This pass removed participant footers and redundant tab Back buttons, moved camera flip into the top control rail, simplified the camera control row for narrow phones, forced light colour-scheme behaviour, removed backdrop blur from the application surfaces, fixed the list and chevron icons used by the map and My posts views, and kept destructive media actions behind confirmation dialogs.

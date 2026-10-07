@@ -85,7 +85,7 @@ and the supporting CSS, image and data files.
 
 ## Current build
 
-Service worker version: `v22-light-ui-final-camera-map`
+Service worker version: `v25-clean-camera-map-location`
 
 Participant UI: light-only pages with a full-screen camera surface.
 
@@ -108,4 +108,7 @@ The participant app is light-only. Main screens use the white bottom navigation;
 
 ## Final release cleanup
 
-Version 1.3.1 is the final light-only UI pass. Participant footers are removed, tab Back buttons are removed, camera controls are white and sized for narrow phones, camera flip is in the top action rail, the map has a Sheet-first list fallback, and My posts uses confirmed deletion with local hiding.
+Version 1.5.0 is the final light-only UI pass. Participant footers are removed, tab Back buttons are removed, camera controls are white and sized for narrow phones, camera flip is in the top action rail, the map has a Sheet-first list fallback, and My posts uses confirmed deletion with local hiding.
+
+## 1.5.0 final audit
+See `PUBLISH-AUDIT-1.5.0.md` for the current release checks.

@@ -4,7 +4,7 @@ import { el, icon, sheet, fmtDist, haversine, toast } from './util.js';
 import { cfg } from './config.js';
 import { TileMap } from './tilemap.js';
 import { getPins, getChallenges } from './data.js';
-import { onFix, lastFix, startWatch, stopWatch } from './location.js';
+import { onFix, lastFix, startWatch, stopWatch, getFix } from './location.js';
 import { doneIds } from './challenges.js';
 import { cache } from './db.js';
 
@@ -22,25 +22,94 @@ export function mountMap(root, app) {
   root.replaceChildren();
   const wrap = el('div', { class: 'map-wrap' });
   const banner = el('div', { class: 'map-banner', hidden: true });
-  const place = el('div', { class: 'map-place' }, el('b', {}, 'Kalgoorlie · Goldfields-Esperance'), el('span', {}, 'Western Australia'));
+  const place = el('div', { class: 'map-place' },
+    el('span', { class: 'eyebrow' }, 'JOTA-JOTI'),
+    el('b', {}, 'Event map'),
+    el('span', {}, 'Kalgoorlie · Goldfields-Esperance'));
+  const viewToggle = el('div', { class: 'map-view-toggle', role: 'group', 'aria-label': 'Map view' },
+    el('button', { id: 'map-view-map', type: 'button', 'aria-pressed': 'true', onclick: () => setList(false) }, 'Map'),
+    el('button', { id: 'map-view-list', type: 'button', 'aria-pressed': 'false', onclick: () => setList(true) }, 'List'));
   const listBox = el('div', { class: 'page', hidden: true });
   const emptyMap = el('div', { class: 'map-empty', hidden: true });
+  const popover = el('div', { class: 'map-popover', hidden: true });
   const tools = el('div', { class: 'map-toolbar' },
     el('button', { class: 'tool', 'aria-label': 'Zoom in', onclick: () => map && map.zoomBy(1) }, icon('plus')),
     el('button', { class: 'tool', 'aria-label': 'Zoom out', onclick: () => map && map.zoomBy(-1) }, el('span', { style: { fontSize: '22px', lineHeight: 1 } }, '−')),
-    el('button', { class: 'tool', id: 'locate', 'aria-label': 'Centre on my location', onclick: () => { const f = lastFix(); if (f && map) map.setView(f.latitude, f.longitude, Math.max(map.zoom, 16)); } }, icon('locate')),
-    el('button', { class: 'tool', id: 'map-list', 'aria-label': 'Show locations as a list', 'aria-pressed': 'false', onclick: toggleList }, icon('list')));
+    el('button', { class: 'tool', id: 'locate', 'aria-label': 'Centre on my location', onclick: () => { const f = lastFix(); if (f && map) map.setView(f.latitude, f.longitude, Math.max(map.zoom, 16)); else startWatch(); } }, icon('locate')));
   const external = el('button', { class: 'map-external', hidden: true, onclick: () => { if (cfg.mapUrl) window.open(cfg.mapUrl, '_blank', 'noopener,noreferrer'); } }, icon('map'), el('span', {}, 'Open Google Maps'));
-  root.append(wrap, banner, place, external, tools, emptyMap, listBox);
+  root.append(wrap, banner, place, viewToggle, external, tools, emptyMap, listBox, popover);
   let map = null, pins = [], challenges = [], done = new Set(), off = null, showingList = false, initialViewSet = false;
 
-  function toggleList() {
-    showingList = !showingList;
-    listBox.hidden = !showingList; wrap.hidden = showingList; place.hidden = showingList; tools.hidden = showingList; external.hidden = showingList || !cfg.mapUrl; root.style.overflowY = showingList ? 'auto' : 'hidden';
-    const listBtn = root.querySelector('#map-list');
+  function hidePopover() { popover.hidden = true; popover.replaceChildren(); }
+
+  function showPopoverContent(title, kicker, description, instructions, points, challengeRows = []) {
+    const close = el('button', { class: 'map-popover-close', 'aria-label': 'Close', onclick: hidePopover }, icon('close'));
+    const iconBox = el('div', { class: 'map-popover-icon' }, icon(challengeRows.length ? 'flag' : 'pin'));
+    const titleBlock = el('div', { class: 'grow' },
+      el('span', { class: 'kicker' }, kicker),
+      el('h2', {}, title),
+      points ? el('span', { class: 'pill acc' }, `${points} points`) : null);
+    const head = el('div', { class: 'map-popover-head' }, iconBox, titleBlock, close);
+    const content = [];
+    if (description) content.push(el('p', { class: 'map-popover-description' }, description));
+    if (instructions) content.push(el('div', { class: 'map-popover-instructions' },
+      el('b', {}, 'What to do'), el('p', {}, instructions)));
+    if (challengeRows.length) {
+      const list = el('div', { class: 'map-popover-challenges' });
+      for (const row of challengeRows) list.append(row);
+      content.push(list);
+    }
+    const actions = el('div', { class: 'map-popover-actions' });
+    popover.replaceChildren(head, ...content, actions);
+    popover.hidden = false;
+    return actions;
+  }
+
+  function showChallengePopover(c, location = null) {
+    const title = location?.name || c.name;
+    const actions = showPopoverContent(title, `CHALLENGE${c.number ? ' · ' + c.number : ''}`, c.description || '', c.instructions || '', c.points || 0);
+    const requiredRadius = cfg.enforceRadius ? Number(c.radius || 0) : 0;
+    const f = lastFix();
+    const distance = location && f ? haversine(f.latitude, f.longitude, Number(location.latitude), Number(location.longitude)) : null;
+    const outside = requiredRadius > 0 && (distance == null || distance > requiredRadius);
+    if (requiredRadius > 0) {
+      actions.append(el('p', { class: `small ${outside ? 'map-range-warning' : 'map-range-ok'}` },
+        distance == null ? `This challenge needs your location and must be completed within ${requiredRadius} m.`
+          : outside ? `Move closer. You are ${fmtDist(distance)} away.`
+          : `You are ${fmtDist(distance)} away and within the challenge area.`));
+    }
+    if (c.requiredMedia !== 'video' && cfg.photosEnabled) {
+      actions.append(el('button', { class: 'btn block', disabled: outside, onclick: () => { hidePopover(); app.startChallenge(c, 'photo'); } }, 'Take photo'));
+    }
+    if (c.requiredMedia !== 'photo' && cfg.videosEnabled && (!location || location.videoAllowed !== false)) {
+      actions.append(el('button', { class: 'btn ghost block', disabled: outside, onclick: () => { hidePopover(); app.startChallenge(c, 'video'); } }, 'Record video'));
+    }
+    if (location) actions.append(el('button', { class: 'btn ghost block', onclick: () => window.open(googleMapsDirectionsUrl(location), '_blank', 'noopener,noreferrer') }, 'Get directions'));
+  }
+
+  function showLocationPopover(p) {
+    const actions = showPopoverContent(p.name, 'MAP LOCATION', p.description || '', p.instructions || '', p.points || 0);
+    const f = lastFix();
+    if (f) actions.append(el('p', { class: 'small muted' }, `${fmtDist(haversine(f.latitude, f.longitude, p.latitude, p.longitude))} from you`));
+    if (cfg.photosEnabled) actions.append(el('button', { class: 'btn block', onclick: () => { hidePopover(); app.ctx.challenge = null; app.ctx.mode = 'photo'; app.go('camera', {}, { replace: true }); } }, 'Take photo'));
+    if (p.videoAllowed && cfg.videosEnabled) actions.append(el('button', { class: 'btn ghost block', onclick: () => { hidePopover(); app.ctx.challenge = null; app.ctx.mode = 'video'; app.go('camera', {}, { replace: true }); } }, 'Record video'));
+    actions.append(el('button', { class: 'btn ghost block', onclick: () => window.open(googleMapsDirectionsUrl(p), '_blank', 'noopener,noreferrer') }, 'Get directions'));
+  }
+
+  function setList(next) {
+    showingList = !!next;
+    if (showingList) hidePopover();
+    listBox.hidden = !showingList;
+    wrap.hidden = showingList;
+    place.hidden = showingList;
+    viewToggle.hidden = false;
+    tools.hidden = showingList;
+    external.hidden = showingList || !cfg.mapUrl;
+    root.style.overflowY = showingList ? 'auto' : 'hidden';
+    const mapBtn = root.querySelector('#map-view-map');
+    const listBtn = root.querySelector('#map-view-list');
+    mapBtn.setAttribute('aria-pressed', String(!showingList));
     listBtn.setAttribute('aria-pressed', String(showingList));
-    listBtn.setAttribute('aria-label', showingList ? 'Show map' : 'Show locations as a list');
-    listBtn.replaceChildren(icon(showingList ? 'map' : 'list'));
     if (showingList) drawList();
   }
 
@@ -65,57 +134,29 @@ export function mountMap(root, app) {
   }
 
   function openChallenges(cs, location = null) {
-    if (!cs.length) return openPin(location);
-    const go = (c, mode) => { s.close(); app.startChallenge(c, mode); };
-    const body = el('div', {},
-      el('div', { class: 'challenge-map-sheet-head' },
-        el('span', { class: 'kicker' }, location ? 'MAP LOCATION' : 'CHALLENGE'),
-        el('h1', {}, location ? location.name : (cs.length === 1 ? cs[0].name : 'Challenges here')),
-        location?.description ? el('p', { class: 'muted' }, location.description) : null),
-      el('div', { class: 'challenge-map-list' }, ...cs.map((c) => {
-        const canPhoto = c.requiredMedia !== 'video' && cfg.photosEnabled;
-        const canVideo = c.requiredMedia !== 'photo' && cfg.videosEnabled && (!location || location.videoAllowed !== false);
-        const requiredRadius = cfg.enforceRadius ? Number(c.radius || 0) : 0;
-        const f = lastFix();
-        const distance = location && f ? haversine(f.latitude, f.longitude, Number(location.latitude), Number(location.longitude)) : null;
-        const outside = requiredRadius > 0 && (distance == null || distance > requiredRadius);
-        const rangeNote = outside
-          ? el('p', { class: 'small map-range-warning' }, distance == null ? `This challenge needs your location and must be completed within ${requiredRadius} m.` : `Move closer to the pin. You are ${fmtDist(distance)} away and this challenge requires ${requiredRadius} m.`)
-          : requiredRadius > 0 && distance != null ? el('p', { class: 'small map-range-ok' }, `You’re ${fmtDist(distance)} away · within the ${requiredRadius} m challenge area.`)
-          : null;
-        const goChecked = (mode) => {
-          if (outside) { toast('Move closer to the challenge location before starting this challenge.', ''); return; }
-          go(c, mode);
-        };
-        return el('div', { class: 'challenge-map-item' },
-          el('div', { class: 'row' }, el('div', { class: 'challenge-map-number' }, String(c.number || '•')), el('div', { class: 'grow' }, el('b', {}, c.name), el('span', { class: 'small muted' }, `${c.points ? c.points + ' points' : mediaLabel(c.requiredMedia)}${c.location?.name ? ' · ' + c.location.name : ''}`))),
-          c.description ? el('p', { class: 'small muted' }, c.description) : null,
-          c.instructions ? el('p', { class: 'small' }, c.instructions) : null,
-          rangeNote,
-          el('div', { class: 'row' },
-            canPhoto ? el('button', { class: 'btn small grow', disabled: outside, onclick: () => goChecked('photo') }, 'Take photo') : null,
-            canVideo ? el('button', { class: 'btn small ghost grow', disabled: outside, onclick: () => goChecked('video') }, 'Record video') : null));
-      })),
-      location ? el('button', { class: 'btn ghost block', onclick: () => window.open(googleMapsDirectionsUrl(location), '_blank', 'noopener,noreferrer') }, 'Get directions') : null,
-      el('button', { class: 'btn ghost block', onclick: () => { s.close(); app.go('challenges', {}, { replace: true }); } }, 'View all challenges'));
-    const s = sheet(body, { label: 'Challenge location' });
+    if (!cs.length) return location ? showLocationPopover(location) : hidePopover();
+    if (cs.length === 1) return showChallengePopover(cs[0], location);
+
+    const actions = showPopoverContent(location?.name || 'Challenges here', 'CHALLENGES', location?.description || '', location?.instructions || '', 0);
+    const rows = document.createElement('div');
+    rows.className = 'map-popover-challenges';
+    for (const c of cs) {
+      rows.append(el('button', { class: 'map-popover-challenge-row', onclick: () => showChallengePopover(c, location) },
+        el('div', { class: 'challenge-map-number' }, String(c.number || '•')),
+        el('div', { class: 'grow' }, el('b', {}, c.name), c.description
+          ? el('span', { class: 'small muted' }, c.description)
+          : el('span', { class: 'small muted' }, mediaLabel(c.requiredMedia))),
+        icon('chevron')));
+    }
+    const existing = popover.querySelector('.map-popover-challenges');
+    if (existing) existing.replaceWith(rows); else popover.insertBefore(rows, actions);
+    actions.append(el('button', { class: 'btn ghost block', onclick: () => { hidePopover(); app.go('challenges', {}, { replace: true }); } }, 'View all challenges'));
   }
 
   function openPin(p) {
-    const f = lastFix();
     const cs = chal(p);
     if (cs.length) return openChallenges(cs, p);
-    const s = sheet(el('div', {},
-      el('span', { class: 'kicker' }, 'MAP LOCATION'), el('h1', {}, p.name),
-      p.points ? el('p', {}, el('span', { class: 'pill acc' }, `${p.points} points`)) : null,
-      p.description ? el('p', {}, p.description) : null,
-      p.instructions ? el('p', { class: 'small muted' }, p.instructions) : null,
-      f ? el('p', { class: 'small' }, `${fmtDist(haversine(f.latitude, f.longitude, p.latitude, p.longitude))} from you`) : null,
-      el('div', { class: 'stack' },
-        cfg.photosEnabled ? el('button', { class: 'btn block', onclick: () => { s.close(); app.ctx.challenge = null; app.go('camera', {}, { replace: true }); } }, 'Take photo') : null,
-        p.videoAllowed && cfg.videosEnabled ? el('button', { class: 'btn ghost block', onclick: () => { s.close(); app.ctx.challenge = null; app.ctx.mode = 'video'; app.go('camera', {}, { replace: true }); } }, 'Record video') : null,
-        el('button', { class: 'btn ghost block', onclick: () => window.open(googleMapsDirectionsUrl(p), '_blank', 'noopener,noreferrer') }, 'Get directions')),
-      { label: p.name });
+    showLocationPopover(p);
   }
 
   function paint() {
@@ -150,13 +191,34 @@ export function mountMap(root, app) {
   return {
     async show() {
       if (!map) {
-        map = new TileMap(wrap, { tileUrl: cfg.tileUrl, lat: cfg.mapCenterLat, lon: cfg.mapCenterLon, zoom: cfg.mapZoom, onMarkerClick: (m) => m.kind === 'challenge' ? openChallenges(m.challengeGroup, m.pin) : openPin(m.pin), label: 'Map of challenge locations. Use the list button for a text version.' });
+        map = new TileMap(wrap, { tileUrl: cfg.tileUrl, lat: cfg.mapCenterLat, lon: cfg.mapCenterLon, zoom: cfg.mapZoom, onMarkerClick: (m) => m.kind === 'challenge' ? openChallenges(m.challengeGroup, m.pin) : openPin(m.pin), onMapClick: () => hidePopover(), label: 'Map of challenge locations. Use the list button for a text version.' });
       }
       map.tileUrl = cfg.tileUrl;
       external.hidden = !cfg.mapUrl;
       startWatch(); off && off();
-      off = onFix((f) => { if (map) map.setUser(f); });
-      if (lastFix()) map.setUser(lastFix());
+      off = onFix((f) => {
+        if (!map) return;
+        map.setUser(f);
+        if (f && !app.ctx.mapFocus) {
+          map.setView(f.latitude, f.longitude, Math.max(map.zoom, 16));
+          initialViewSet = true;
+        }
+        if (showingList) drawList();
+      });
+      const existingFix = lastFix();
+      if (existingFix) {
+        map.setUser(existingFix);
+        if (!app.ctx.mapFocus) { map.setView(existingFix.latitude, existingFix.longitude, Math.max(map.zoom, 16)); initialViewSet = true; }
+      } else {
+        // Try once in the background so the map can centre on the phone without waiting for event locations.
+        getFix().then((f) => {
+          if (!f || !map || app.ctx.mapFocus) return;
+          map.setUser(f);
+          map.setView(f.latitude, f.longitude, Math.max(map.zoom, 16));
+          initialViewSet = true;
+          if (showingList) drawList();
+        }).catch(() => {});
+      }
       if (!pins.length) {
         const quick = await cache.get('pins').catch(() => null);
         if (Array.isArray(quick) && quick.length) {
@@ -171,24 +233,30 @@ export function mountMap(root, app) {
       let sourceLabel = '';
       if (p.sheetUrl) { try { sourceLabel = ' · ' + new URL(p.sheetUrl).hostname; } catch {} }
       banner.textContent = p.offline ? (pins.length ? 'Offline. The last saved Google Sheet locations are being used.' : 'Offline. The Kalgoorlie base map is still available. Add locations when you are back online.') : `Locations loaded from the organiser Google Sheet${sourceLabel}.`;
-      const challengeCount = challenges.length;
-      emptyMap.hidden = !!(pins.length || challengeCount);
-      emptyMap.innerHTML = '';
-      if (!emptyMap.hidden) {
-        emptyMap.append(el('b', {}, 'Kalgoorlie map ready'), el('p', { class: 'small' }, 'The base map is available now. Locations and challenges from the organiser Google Sheet will appear here automatically.'), el('button', { class: 'btn small', onclick: () => app.go('camera') }, 'Open camera'));
-      }
+      emptyMap.hidden = true;
+      emptyMap.replaceChildren();
       paint();
-      const focusPoints = [...pins.map((x) => ({ lat: x.latitude, lon: x.longitude })), ...challenges.filter((c) => c.location).map((c) => ({ lat: Number(c.location.latitude), lon: Number(c.location.longitude) }))];
       if (app.ctx.mapFocus) {
         map.setView(Number(app.ctx.mapFocus.lat), Number(app.ctx.mapFocus.lon), Math.max(map.zoom, 16));
         app.ctx.mapFocus = null;
+        initialViewSet = true;
       } else if (!initialViewSet) {
-        if (focusPoints.length) map.fitTo(focusPoints);
+        // Never wait for pins: always show a real map. Use the phone location when available,
+        // otherwise use the organiser's Kalgoorlie centre. Pins simply layer over the map.
+        const f = lastFix();
+        if (f) map.setView(f.latitude, f.longitude, Math.max(Number(cfg.mapZoom) || 14, 16));
         else map.setView(Number(cfg.mapCenterLat), Number(cfg.mapCenterLon), Number(cfg.mapZoom));
         initialViewSet = true;
       }
+      banner.hidden = false;
+      if (navigator.onLine === false || p.offline) {
+        banner.textContent = pins.length ? 'Offline: saved event locations are shown on the map. Your location is shown in blue when available.' : 'Map is ready. Your location is shown in blue when location access is allowed. Event locations will appear here when organisers add them.';
+      } else {
+        banner.textContent = pins.length ? 'Event locations are shown on the map. Your location is the blue dot.' : 'Map is ready. Your location is the blue dot. Event locations will appear here when organisers add them.';
+      }
       if (showingList) drawList();
-      map.resize();
+      requestAnimationFrame(() => { map.resize(); map.invalidate(); });
+      setTimeout(() => { map.resize(); map.invalidate(); }, 120);
     },
     hide() { off && off(); off = null; stopWatch(); },
   };

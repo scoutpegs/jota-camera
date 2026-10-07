@@ -8,7 +8,7 @@ import { prepareOffline } from './data.js';
 import { storageEstimate, requestPersistence } from './db.js';
 import { pendingCount } from './submissions.js';
 
-export const VERSION = '1.3.1';
+export const VERSION = '1.4.1';
 
 export function mountSettings(root, app) {
   async function render() {

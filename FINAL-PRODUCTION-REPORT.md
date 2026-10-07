@@ -56,6 +56,6 @@ The package contains only the browser-safe Supabase publishable key and the non-
 
 Real iPhone/iPad/Android camera, microphone, GPS, torch and hardware-lens behaviour must still be checked on the actual event devices. The build environment blocked the final local-browser smoke test, so this report does not claim a successful hardware run.
 
-## Version 1.3.1 final cleanup
+## Version 1.5.0 final cleanup
 
 This pass removed participant footers and redundant tab Back buttons, moved camera flip into the top control rail, simplified the camera control row for narrow phones, forced light colour-scheme behaviour, removed backdrop blur from the application surfaces, fixed the list and chevron icons used by the map and My posts views, and kept destructive media actions behind confirmation dialogs.
