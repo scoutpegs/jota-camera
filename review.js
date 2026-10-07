@@ -74,14 +74,22 @@ export function mountReview(root, app) {
         sub.mediaType === 'video' ? el('span', { class: 'pill' }, fmtClock(sub.duration)) : null),
       msg,
       el('div', { class: 'row' }, el('button', { class: 'btn ghost', id: 'retake-btn', onclick: () => leave() }, 'Retake'), next));
-    const close = el('button', { class: 'tool review-discard-x', style: { position: 'absolute', top: '12px', left: 'calc(12px + var(--safe-l))' }, 'aria-label': 'Discard photo or video', title: 'Discard', onclick: async () => { const ok = confirm('Discard this photo or video?'); if (!ok) return; await discard(sub.id); toast('Discarded.', 'ok'); app.go('camera', {}, { replace: true }); } }, icon('close'));
+    const close = el('button', { class: 'tool review-discard-x', 'aria-label': 'Discard photo or video', title: 'Discard', onclick: async () => {
+      const r = await choose('Discard this capture?', 'The saved photo or video will be removed from this phone.', [{ label: 'Discard', value: 'discard', cls: 'danger' }, { label: 'Keep it', value: 'keep', cls: 'ghost' }]);
+      if (r !== 'discard') return;
+      try { await discard(sub.id); toast('Capture discarded.', 'ok'); app.go('camera', {}, { replace: true }); }
+      catch { toast('The capture could not be discarded. It is still saved on this phone.', 'bad', 5500); }
+    } }, icon('close'));
     root.append(el('div', { class: 'stage' }, media), close, bar);
     evaluate();
   }
 
   async function leave() {
     const r = await leaveDialog();
-    if (r === 'discard') { await discard(sub.id); app.go('camera', {}, { replace: true }); }
+    if (r === 'discard') {
+      try { await discard(sub.id); app.go('camera', {}, { replace: true }); }
+      catch { toast('The draft could not be discarded. It is still saved on this phone.', 'bad', 5500); }
+    }
     else if (r === 'keep') { toast('Saved as a draft in My posts.'); app.go('camera', {}, { replace: true }); }
   }
 
@@ -131,8 +139,12 @@ export function mountSubmit(root, app) {
           el('div', { class: 'kv' }, ...row('Location', locText(sub)))),
         el('label', { class: 'field' }, el('span', {}, 'Caption'), caption),
         go, el('p', { style: { height: '8px' } }),
-        el('button', { class: 'btn ghost block', onclick: async () => { if (!confirm('Delete this draft from this phone?')) return; await (await import('./submissions.js')).discard(sub.id); toast('Draft deleted.', 'ok'); app.go('camera', {}, { replace: true }); } }, 'Delete draft'),
-        el('button', { class: 'btn ghost block', onclick: () => history.back() }, 'Back')));
+        el('button', { class: 'btn ghost block danger', onclick: async () => {
+          const r = await choose('Delete this draft?', 'The saved photo or video will be removed from this phone.', [{ label: 'Delete draft', value: 'delete', cls: 'danger' }, { label: 'Keep it', value: 'keep', cls: 'ghost' }]);
+          if (r !== 'delete') return;
+          try { await (await import('./submissions.js')).discard(sub.id); toast('Draft deleted.', 'ok'); app.go('camera', {}, { replace: true }); }
+          catch { toast('The draft could not be deleted. It is still saved on this phone.', 'bad', 5500); }
+        } }, 'Delete draft')));
       root.scrollTop = 0;
     },
     hide() { if (url) { URL.revokeObjectURL(url); url = null; } },

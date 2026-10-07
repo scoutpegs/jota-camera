@@ -1,5 +1,5 @@
 // The Sounds sheet: browse/search the organiser's library, your own sounds, and record or add a custom sound.
-import { el, icon, sheet, fmtClock, toast } from './util.js';
+import { el, icon, sheet, fmtClock, toast, choose } from './util.js';
 import { cfg } from './config.js';
 import { fetchSounds, getSoundBlob, localSoundIds, listMySounds, saveCustomSound, deleteLocalSound, CustomRecorder, audioLength } from './audio.js';
 
@@ -44,8 +44,14 @@ export function openSounds({ current } = {}) {
       el('div', { class: 'art' }, snd.artworkUrl ? el('img', { src: snd.artworkUrl, alt: '', loading: 'lazy' }) : icon('music')),
       el('div', { class: 'meta' }, el('b', {}, snd.title), el('span', {}, [snd.artist, snd.duration ? fmtClock(snd.duration) : '', localIds.has(snd.id) ? 'saved on phone' : ''].filter(Boolean).join(' · ') || snd.category || '')),
       el('button', { class: 'icon-btn', 'aria-label': (playingId === snd.id ? 'Stop preview of ' : 'Preview ') + snd.title, onclick: (e) => toggle(snd, e.currentTarget) }, icon(playingId === snd.id ? 'pause' : 'play')),
-      el('button', { class: 'btn small', onclick: () => useSound(snd) }, current && current.id === snd.id ? 'Using' : 'Use'),
-      mine ? el('button', { class: 'icon-btn', 'aria-label': 'Delete ' + snd.title, onclick: async () => { await deleteLocalSound(snd.id); render(true); } }, icon('close')) : null);
+      el('button', { class: 'btn small', disabled: !!(current && current.id === snd.id), onclick: () => useSound(snd) }, current && current.id === snd.id ? 'Using' : 'Use'),
+      mine ? el('button', { class: 'icon-btn', 'aria-label': 'Delete ' + snd.title, title: 'Delete sound', onclick: async () => {
+        const r = await choose('Delete this sound?', `Remove “${snd.title}” from this phone?`, [{ label: 'Delete sound', value: 'delete', cls: 'danger' }, { label: 'Keep it', value: 'keep', cls: 'ghost' }]);
+        if (r !== 'delete') return;
+        await deleteLocalSound(snd.id);
+        if (current && current.id === snd.id) finish({ action: 'clear' });
+        else render(true);
+      } }, icon('close')) : null);
 
     async function render(reset) {
       if (tab === 'custom') return renderCustom();

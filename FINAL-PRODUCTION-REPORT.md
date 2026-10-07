@@ -6,7 +6,7 @@ This build is a cleaned, flat-root production package for the Kalgoorlie Scout G
 
 - Light-only participant application.
 - Purple action colour with amber for active/selected states.
-- Full-screen camera with a Snapchat-style control arrangement: top utility controls, challenge chip, lens/mode controls, large shutter and bottom navigation.
+- Full-screen camera with a Snapchat-style control arrangement: top utility controls, challenge chip, lens/mode controls, large shutter and a white bottom navigation bar.
 - Stable button sizing and pressed states with no jump/scale interaction.
 - Safe-area and dynamic viewport handling for installed phone apps.
 - Install recommendation for the home screen/PWA experience.
@@ -55,3 +55,7 @@ The package contains only the browser-safe Supabase publishable key and the non-
 ## Physical-device note
 
 Real iPhone/iPad/Android camera, microphone, GPS, torch and hardware-lens behaviour must still be checked on the actual event devices. The build environment blocked the final local-browser smoke test, so this report does not claim a successful hardware run.
+
+## Version 1.3.1 final cleanup
+
+This pass removed participant footers and redundant tab Back buttons, moved camera flip into the top control rail, simplified the camera control row for narrow phones, forced light colour-scheme behaviour, removed backdrop blur from the application surfaces, fixed the list and chevron icons used by the map and My posts views, and kept destructive media actions behind confirmation dialogs.

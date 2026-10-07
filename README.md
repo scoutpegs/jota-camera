@@ -85,7 +85,7 @@ and the supporting CSS, image and data files.
 
 ## Current build
 
-Service worker version: `v21-full-ui-light-map-backup`
+Service worker version: `v22-light-ui-final-camera-map`
 
 Participant UI: light-only pages with a full-screen camera surface.
 
@@ -102,3 +102,10 @@ Backup: Supabase first, Google Drive mirror, Drive-only fallback when Supabase r
 Every participant/admin page includes:
 
 **Made by Hunter Miller from Boulder Scout Hall**
+
+### Current UI build
+The participant app is light-only. Main screens use the white bottom navigation; there is no site footer and no redundant Back button on tabs that have bottom navigation. The camera is full-screen with white controls and no backdrop blur over the viewfinder.
+
+## Final release cleanup
+
+Version 1.3.1 is the final light-only UI pass. Participant footers are removed, tab Back buttons are removed, camera controls are white and sized for narrow phones, camera flip is in the top action rail, the map has a Sheet-first list fallback, and My posts uses confirmed deletion with local hiding.

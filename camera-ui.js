@@ -1,14 +1,13 @@
 // The Camera tab: live preview, shutter, photo/video modes, sound, challenge chip.
-import { el, icon, toast, haptic, fmtClock } from './util.js';
+import { el, icon, toast, haptic, fmtClock, choose } from './util.js';
 import { cfg } from './config.js';
 import { Camera, CameraError, clearActiveRec } from './camera.js';
-import { getFix, startWatch, stopWatch, permissionState, supported as gpsSupported, isDenied } from './location.js';
+import { getFix, startWatch, stopWatch, permissionState, supported as gpsSupported } from './location.js';
 import { createDraft, listSubs, getThumb } from './submissions.js';
 import { getSoundBlob } from './audio.js';
 import { openSounds } from './sounds.js';
 import { pickChallenge } from './challenges.js';
 import { isIOS, isAndroid } from './install.js';
-import { choose } from './util.js';
 
 export function mountCamera(root, app) {
   root.replaceChildren();
@@ -25,7 +24,6 @@ export function mountCamera(root, app) {
     el('img', { src: 'logo.png', alt: '' }),
     el('div', { class: 'camera-brand-copy' }, el('b', {}, 'JOTA-JOTI'), el('span', { id: 'camera-who' }, ''))
   );
-  const galleryBtn = el('button', { class: 'tool camera-gallery', 'aria-label': 'Open My posts', onclick: () => app.go('posts') }, icon('posts'));
   const torchBtn = el('button', { class: 'tool', id: 'torch', 'aria-label': 'Flashlight', 'aria-pressed': 'false', hidden: true, onclick: async () => {
     const ok = await cam.setTorch(!cam.torchOn); torchBtn.setAttribute('aria-pressed', String(cam.torchOn && ok)); } }, icon('torch'));
   const zoomBtn = el('button', { class: 'tool', id: 'zoom-btn', 'aria-label': 'Zoom', hidden: true, onclick: () => { zoomBar.hidden = !zoomBar.hidden; } }, icon('zoom'));
@@ -40,8 +38,8 @@ export function mountCamera(root, app) {
 
   const soundLabel = el('span', {}, 'Sound');
   const soundBtn = el('button', { class: 'side-btn', id: 'sound-btn', 'aria-label': 'Choose a sound', onclick: chooseSound }, icon('music'), soundLabel);
-  const flipBtn = el('button', { class: 'side-btn', id: 'flip', 'aria-label': 'Switch camera', onclick: async () => {
-    try { await cam.flip(); applyCaps(); } catch (e) { toast('Could not switch camera.', 'bad'); } } }, icon('flip'), el('span', {}, 'Flip'));
+  const flipBtn = el('button', { class: 'tool camera-flip', id: 'flip', 'aria-label': 'Switch camera', title: 'Switch camera', onclick: async () => {
+    try { await cam.flip(); applyCaps(); } catch (e) { toast('Could not switch camera.', 'bad'); } } }, icon('flip'));
   const ring = el('circle', { cx: '43', cy: '43', r: '43' });
   const ringSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   ringSvg.setAttribute('class', 'ring'); ringSvg.setAttribute('viewBox', '0 0 86 86'); ringSvg.append(ring);
@@ -54,33 +52,34 @@ export function mountCamera(root, app) {
   // Native capture fallback for browsers where getUserMedia/MediaRecorder is unavailable.
   // On supported phones this can also hand off to the OS camera picker, which is more
   // reliable than blocking the participant from capturing anything.
-  const latestThumbImg = el('img', { class: 'capture-thumb-image', alt: '' });
-  const latestThumb = el('button', { class: 'capture-thumb', type: 'button', 'aria-label': 'Open My posts', onclick: () => app.go('posts'), hidden: true }, latestThumbImg);
+  const latestThumbImg = el('img', { class: 'capture-thumb-image', alt: '', hidden: true });
+  const latestThumbFallback = el('span', { class: 'capture-thumb-fallback', 'aria-hidden': 'true' }, icon('posts'));
+  const latestThumb = el('button', { class: 'capture-thumb', type: 'button', 'aria-label': 'Open My posts', onclick: () => app.go('posts') }, latestThumbFallback, latestThumbImg);
   const shutterStack = el('div', { class: 'shutter-stack' }, shutter, latestThumb);
   let latestThumbUrl = '';
   const nativeCapture = el('input', { type: 'file', accept: 'image/*,video/*', capture: 'environment', hidden: true, 'aria-label': 'Use device camera' });
 
   const stage = el('div', { class: 'cam-stage' }, video, el('div', { class: 'vf' }, el('i'), el('i'), el('i'), el('i')), flashEl, readout,
     el('div', { class: 'cam-top' },
-      el('div', { class: 'camera-topline' }, brandMark, el('div', { class: 'camera-top-actions' }, galleryBtn, torchBtn, zoomBtn)),
+      el('div', { class: 'camera-topline' }, brandMark, el('div', { class: 'camera-top-actions' }, flipBtn, torchBtn, zoomBtn)),
       el('div', { class: 'camera-challenge-row' }, el('div', { class: 'row' }, chip, chipX))
     ),
     zoomBar,
     zoomPresets,
-    el('div', { class: 'cam-bottom' }, el('div', { class: 'camera-mode-row' }, modes), el('div', { class: 'shutter-row' }, soundBtn, shutterStack, flipBtn)),
+    el('div', { class: 'cam-bottom' }, el('div', { class: 'camera-mode-row' }, modes), el('div', { class: 'shutter-row' }, soundBtn, shutterStack)),
     gate);
   root.append(stage, nativeCapture);
 
   function clearLatestThumb() {
     if (latestThumbUrl) { try { URL.revokeObjectURL(latestThumbUrl); } catch {} latestThumbUrl = ''; }
-    latestThumbImg.removeAttribute('src'); latestThumb.hidden = true;
+    latestThumbImg.removeAttribute('src'); latestThumbImg.hidden = true; latestThumbFallback.hidden = false; latestThumb.hidden = false;
   }
   function setLatestThumb(blob) {
     if (!blob) return;
     clearLatestThumb();
     latestThumbUrl = URL.createObjectURL(blob);
     latestThumbImg.src = latestThumbUrl;
-    latestThumb.hidden = false;
+    latestThumbImg.hidden = false; latestThumbFallback.hidden = true; latestThumb.hidden = false;
   }
   async function loadLatestThumb() {
     try {

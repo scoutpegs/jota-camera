@@ -1,5 +1,5 @@
 // My posts: a map-first memory view. Every geotagged capture is pinned near where it was taken.
-import { el, icon, ago, toast, sheet } from './util.js';
+import { el, icon, ago, toast, sheet, choose } from './util.js';
 import { listSubs, getThumb, getMedia, discard, retryNow, events as subEvents } from './submissions.js';
 import { kv } from './db.js';
 import { events as upEvents, kick } from './uploader.js';
@@ -52,15 +52,24 @@ export function mountPosts(root, app) {
 
   async function deletePost(s) {
     const localOnly = s.status !== 'UPLOADED' && !s.mediaUrl;
+    const title = localOnly ? 'Delete this capture?' : 'Remove this capture from My posts?';
     const message = localOnly
-      ? 'Delete this saved post from this phone? This also removes its queued media.'
-      : 'Remove this post from My posts on this phone? The organiser copy will stay stored on the server.';
-    if (!window.confirm(message)) return;
-    await hidePost(s.id);
-    try { await discard(s.id); } catch {}
-    activeSheet?.close(); activeSheet = null;
-    toast(localOnly ? 'Post deleted from this phone.' : 'Post removed from My posts.', 'ok');
-    await render();
+      ? 'This removes the saved photo or video and its queued upload from this phone. It cannot be undone.'
+      : 'The organiser copy stays on the server. This only removes the capture from this phone and from My posts.';
+    const choice = await choose(title, message, [
+      { label: localOnly ? 'Delete from this phone' : 'Remove from My posts', value: 'delete', cls: 'danger' },
+      { label: 'Keep it', value: 'keep', cls: 'ghost' },
+    ]);
+    if (choice !== 'delete') return;
+    try {
+      await discard(s.id);
+      await hidePost(s.id);
+      activeSheet?.close(); activeSheet = null;
+      toast(localOnly ? 'Capture deleted from this phone.' : 'Capture removed from My posts.', 'ok');
+      await render();
+    } catch (e) {
+      toast('That capture could not be removed. It is still saved on this phone.', 'bad', 5500);
+    }
   }
 
   async function loadRemote() {
@@ -165,7 +174,13 @@ export function mountPosts(root, app) {
         s.challengeName ? el('div', { class: 'memory-challenge' }, el('b', {}, s.challengeName), el('span', {}, 'Challenge attached to this post')) : null,
         el('div', { class: 'row wrap' },
           hasCoords(s) ? el('button', { class: 'btn small grow', onclick: () => { activeSheet?.close(); activeSheet = null; map?.setView(Number(s.latitude), Number(s.longitude), Math.max(map.zoom, 17)); } }, 'Show on map') : null,
-          s.status === 'FAILED' ? el('button', { class: 'btn small ghost grow', onclick: async () => { await retryNow(s.id); kick(); toast('Retry queued.', 'ok'); } }, 'Retry upload') : null,
+          s.status === 'FAILED' ? el('button', { class: 'btn small ghost grow', onclick: async () => {
+            await retryNow(s.id);
+            kick();
+            activeSheet?.close(); activeSheet = null;
+            toast('Retry queued.', 'ok');
+            await render();
+          } }, 'Retry upload') : null,
           el('button', { class: 'btn small danger grow', onclick: () => deletePost(s) }, 'Delete'))));
     activeSheet = sheet(body, { label: 'Post details', onClose: () => { activeSheet = null; } });
   }

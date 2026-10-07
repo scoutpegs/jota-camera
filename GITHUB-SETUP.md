@@ -79,6 +79,9 @@ Finish `SETUP.md` before giving participants the public link. The site requires 
 
 This build uses:
 
-`v21-full-ui-light-map-backup`
+`v22-light-ui-final-camera-map`
 
 After publishing an update, close old tabs and reopen the GitHub Pages address so the new service-worker shell can take over.
+
+### Current UI build
+The participant app is light-only. Main screens use the white bottom navigation; there is no site footer and no redundant Back button on tabs that have bottom navigation. The camera is full-screen with white controls and no backdrop blur over the viewfinder.

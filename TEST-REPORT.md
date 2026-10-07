@@ -25,3 +25,7 @@ Build: light-only participant UI, full-screen camera, Sheet-driven map, Supabase
 ## Live-device limitation
 
 A real phone/tablet acceptance test is still required for camera permission, microphone permission, GPS, torch, hardware lens switching, MediaRecorder formats and physical network conditions. The build environment used for this package blocked the local-browser smoke test, so those hardware behaviours are not claimed as environment-tested.
+
+## Version 1.3.1 final cleanup
+
+This pass removed participant footers and redundant tab Back buttons, moved camera flip into the top control rail, simplified the camera control row for narrow phones, forced light colour-scheme behaviour, removed backdrop blur from the application surfaces, fixed the list and chevron icons used by the map and My posts views, and kept destructive media actions behind confirmation dialogs.

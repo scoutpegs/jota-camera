@@ -50,3 +50,6 @@ In the Google Sheet:
 9. Check Google Drive and the `Backups` sheet for the copied file.
 
 For the complete explanation and troubleshooting, use `SETUP.md`.
+
+### Current UI build
+The participant app is light-only. Main screens use the white bottom navigation; there is no site footer and no redundant Back button on tabs that have bottom navigation. The camera is full-screen with white controls and no backdrop blur over the viewfinder.

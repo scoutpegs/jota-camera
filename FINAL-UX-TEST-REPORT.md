@@ -3,7 +3,7 @@
 ## Participant interface
 
 - Participant pages are light-only. There is no user-facing dark-mode switch or dark-mode stylesheet.
-- The camera is full-bleed and uses dark viewfinder controls so the live image remains easy to see.
+- The camera is full-bleed and uses white controls while the live feed remains the only photographic surface.
 - Buttons have fixed dimensions and stable pressed states. They do not jump, scale or glow when tapped.
 - The bottom navigation sits at the device bottom edge and respects safe-area insets when the PWA is installed.
 - The camera is the centre tab: Map, Challenges, Camera, My posts, Settings.
@@ -19,7 +19,7 @@
 
 - Remote configuration requests are non-blocking during startup.
 - Cached map data is drawn before the online map refresh.
-- Service worker cache version is `v21-full-ui-light-map-backup`.
+- Service worker cache version is `v22-light-ui-final-camera-map`.
 - Map tiles can use the last visible parent tile while a child tile loads.
 - Optional thumbnails/audio no longer make a main submission fail when local storage is tight.
 - Upload fetch requests have bounded timeouts so a poor connection can fall back to the local queue instead of hanging the interface indefinitely.
@@ -28,3 +28,7 @@
 ## Device-specific acceptance
 
 Physical testing is still required for actual camera, microphone, GPS, lens and torch hardware. The build environment could not complete the browser smoke test because local browser navigation was blocked.
+
+## Version 1.3.1 final cleanup
+
+This pass removed participant footers and redundant tab Back buttons, moved camera flip into the top control rail, simplified the camera control row for narrow phones, forced light colour-scheme behaviour, removed backdrop blur from the application surfaces, fixed the list and chevron icons used by the map and My posts views, and kept destructive media actions behind confirmation dialogs.

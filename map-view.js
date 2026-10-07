@@ -29,7 +29,7 @@ export function mountMap(root, app) {
     el('button', { class: 'tool', 'aria-label': 'Zoom in', onclick: () => map && map.zoomBy(1) }, icon('plus')),
     el('button', { class: 'tool', 'aria-label': 'Zoom out', onclick: () => map && map.zoomBy(-1) }, el('span', { style: { fontSize: '22px', lineHeight: 1 } }, '−')),
     el('button', { class: 'tool', id: 'locate', 'aria-label': 'Centre on my location', onclick: () => { const f = lastFix(); if (f && map) map.setView(f.latitude, f.longitude, Math.max(map.zoom, 16)); } }, icon('locate')),
-    el('button', { class: 'tool', id: 'map-list', 'aria-label': 'Show locations as a list', 'aria-pressed': 'false', onclick: toggleList }, icon('posts')));
+    el('button', { class: 'tool', id: 'map-list', 'aria-label': 'Show locations as a list', 'aria-pressed': 'false', onclick: toggleList }, icon('list')));
   const external = el('button', { class: 'map-external', hidden: true, onclick: () => { if (cfg.mapUrl) window.open(cfg.mapUrl, '_blank', 'noopener,noreferrer'); } }, icon('map'), el('span', {}, 'Open Google Maps'));
   root.append(wrap, banner, place, external, tools, emptyMap, listBox);
   let map = null, pins = [], challenges = [], done = new Set(), off = null, showingList = false, initialViewSet = false;
@@ -37,7 +37,10 @@ export function mountMap(root, app) {
   function toggleList() {
     showingList = !showingList;
     listBox.hidden = !showingList; wrap.hidden = showingList; place.hidden = showingList; tools.hidden = showingList; external.hidden = showingList || !cfg.mapUrl; root.style.overflowY = showingList ? 'auto' : 'hidden';
-    root.querySelector('#map-list').setAttribute('aria-pressed', String(showingList));
+    const listBtn = root.querySelector('#map-list');
+    listBtn.setAttribute('aria-pressed', String(showingList));
+    listBtn.setAttribute('aria-label', showingList ? 'Show map' : 'Show locations as a list');
+    listBtn.replaceChildren(icon(showingList ? 'map' : 'list'));
     if (showingList) drawList();
   }
 

@@ -54,3 +54,7 @@ The app keeps the local media until the required backup state is confirmed.
 ## Live test limitation
 
 The supplied environment prevented a completed Playwright/local-browser smoke test, and it cannot exercise real phone camera hardware. Before the event, run the physical test sequence in `SETUP.md` on the actual iPhone/iPad/Android devices that will be used.
+
+## Version 1.3.1 final cleanup
+
+This pass removed participant footers and redundant tab Back buttons, moved camera flip into the top control rail, simplified the camera control row for narrow phones, forced light colour-scheme behaviour, removed backdrop blur from the application surfaces, fixed the list and chevron icons used by the map and My posts views, and kept destructive media actions behind confirmation dialogs.

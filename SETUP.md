@@ -1,6 +1,6 @@
 # JOTA-JOTI Camera setup
 
-This package is a flat GitHub Pages site for Kalgoorlie Scout Group. The participant app is light-only. The camera is full-screen with dark camera controls because the controls sit over a live viewfinder.
+This package is a flat GitHub Pages site for Kalgoorlie Scout Group. The participant app is light-only. The camera is full-screen with white camera controls with the live viewfinder kept as the only photographic surface.
 
 The normal storage path is:
 
@@ -184,7 +184,7 @@ The public app is a PWA. On supported browsers it will show:
 
 On iPhone/iPad the install sheet gives the Safari Add to Home Screen steps. On supported Chromium browsers it uses the install prompt when the browser offers one.
 
-There is no dark mode in the participant app. The normal pages always use the light colour system. The camera/review surfaces use a dark viewfinder/control layer so white camera controls stay readable over photos.
+There is no dark mode in the participant app. The normal pages, camera controls, review controls and bottom navigation all use the light colour system. The live camera feed itself is the only photographic surface and is not a UI theme.
 
 ## 9. Camera behaviour
 
@@ -285,3 +285,6 @@ Google Apps Script web apps: https://developers.google.com/apps-script/guides/we
 Google Apps Script Properties: https://developers.google.com/apps-script/guides/properties
 
 GitHub Pages quickstart: https://docs.github.com/en/pages/quickstart
+
+### Current UI build
+The participant app is light-only. Main screens use the white bottom navigation; there is no site footer and no redundant Back button on tabs that have bottom navigation. The camera is full-screen with white controls and no backdrop blur over the viewfinder.

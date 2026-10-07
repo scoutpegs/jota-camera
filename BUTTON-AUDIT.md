@@ -43,3 +43,7 @@ This is a static event-hook audit of the production build. It checks that key in
 - Delete all audio → protected bulk delete path
 
 No runtime folders are required for these handlers; all referenced modules are in the GitHub repository root.
+
+## Version 1.3.1 final cleanup
+
+This pass removed participant footers and redundant tab Back buttons, moved camera flip into the top control rail, simplified the camera control row for narrow phones, forced light colour-scheme behaviour, removed backdrop blur from the application surfaces, fixed the list and chevron icons used by the map and My posts views, and kept destructive media actions behind confirmation dialogs.

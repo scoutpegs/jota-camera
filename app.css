@@ -1,7 +1,7 @@
 /* JOTA-JOTI Camera
    One stylesheet, one design language:
    - purple #5a2c84 is the action colour; amber marks "you are here" (active tab, selected, challenge pins)
-   - pages are light, the camera and the photo review are dark because a viewfinder needs that
+   - the entire interface is light; only the live viewfinder/media surface may be dark because camera content controls it
    - buttons change colour when pressed, they never jump, scale or glow
    - no blur filters, no looping animation: it has to stay smooth on an old phone with one bar of signal */
 
@@ -20,8 +20,8 @@
   --warn-soft: #fff0c7;
   --danger: #b3261e;
   --danger-soft: #fde4e1;
-  --nav-bg: #1a0f26;
-  --glass: rgba(18, 8, 28, .58);
+  --nav-bg: #ffffff;
+  --glass: rgba(255,255,255,.94);
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
@@ -65,9 +65,6 @@ b { font-weight: 700; }
 #topbar .logo { width: 34px; height: 34px; object-fit: contain; flex: none; }
 #topbar .title { font-weight: 800; font-size: 17px; color: var(--brand); letter-spacing: .01em; }
 #topbar .spacer { flex: 1; }
-.global-back { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 12px 0 8px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-dark); font-weight: 700; font-size: 15px; }
-.global-back svg { width: 20px; height: 20px; }
-.global-back:active { background: #e3d3ef; }
 .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--ok); background: var(--ok-soft); border-radius: 99px; padding: 5px 10px; white-space: nowrap; }
 .status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .status.busy { color: #6b4700; background: var(--warn-soft); }
@@ -79,13 +76,13 @@ b { font-weight: 700; }
 body[data-view=camera] #topbar, body[data-view=review] #topbar { display: none; }
 body[data-view=review] #nav { display: none; }
 
-#nav { flex: none; display: flex; background: var(--nav-bg); padding: 6px calc(6px + var(--safe-r)) calc(6px + var(--safe-b)) calc(6px + var(--safe-l)); }
+#nav { flex: none; display: flex; background: #fff; padding: 6px calc(6px + var(--safe-r)) calc(6px + var(--safe-b)) calc(6px + var(--safe-l)); }
 #nav button { position: relative; flex: 1; min-width: 0; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  color: #d3c6e2; font-size: 11px; font-weight: 700; border-radius: 12px; }
+  color: #687383; font-size: 11px; font-weight: 700; border-radius: 12px; }
 #nav button svg { width: 24px; height: 24px; }
 #nav button:active { background: rgba(255, 255, 255, .1); }
-#nav button[aria-current=page] { color: var(--amber); }
-#nav .badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--amber); color: #20122e; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; }
+#nav button[aria-current=page] { color: var(--brand); }
+#nav .badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; }
 
 #install-banner { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px calc(10px + var(--safe-r)) 8px calc(12px + var(--safe-l)); background: var(--brand-soft); color: var(--brand-dark); font-size: 13px; line-height: 1.3; border-bottom: 1px solid #dcc9ec; }
 .ib-text { flex: 1; }
@@ -93,9 +90,9 @@ body[data-view=review] #nav { display: none; }
 .ib-btn:active { background: var(--brand-dark); }
 .ib-x { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; color: var(--brand-dark); }
 .ib-x svg { width: 18px; height: 18px; }
-body[data-view=camera] #install-banner { padding-top: calc(var(--safe-t) + 8px); background: var(--nav-bg); color: #fff; border-color: #34224a; }
-body[data-view=camera] .ib-x { color: #fff; }
-body[data-view=camera] .ib-btn { background: var(--amber); color: #20122e; }
+body[data-view=camera] #install-banner { padding-top: 8px; background: #fff; color: var(--ink); border-color: var(--line); }
+body[data-view=camera] .ib-x { color: var(--muted); }
+body[data-view=camera] .ib-btn { background: var(--brand); color: #fff; }
 
 /* ---------- boot screen ---------- */
 #boot { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #fff; color: var(--brand); text-align: center; padding: 24px; transition: opacity .25s; }
@@ -125,7 +122,7 @@ body[data-view=camera] .ib-btn { background: var(--amber); color: #20122e; }
 .icon-btn svg { width: 20px; height: 20px; }
 
 /* round icon buttons used on top of the camera and the map */
-.tool { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 50%; color: #fff; background: transparent; }
+.tool { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 50%; color: var(--ink); background: #fff; }
 .tool svg { width: 24px; height: 24px; }
 .tool:active { background: rgba(255, 255, 255, .22); }
 .tool[aria-pressed=true], .tool.on { color: var(--amber); }
@@ -170,7 +167,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
 .steps svg { width: 18px; height: 18px; vertical-align: -3px; }
 .kv { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; font-weight: 700; text-align: right; }
-.thumb-lg { display: block; width: 100%; max-height: 38dvh; object-fit: contain; background: #111; border-radius: 16px; }
+.thumb-lg { display: block; width: 100%; max-height: 38dvh; object-fit: contain; background: #edf0f3; border-radius: 16px; }
 .big-time { font-size: 44px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; margin: 8px 0; }
 .rec-dot { width: 12px; height: 12px; border-radius: 50%; background: #ff4d3d; flex: none; }
 .credit { text-align: center; margin-top: 26px; }
@@ -201,8 +198,8 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
 .cam-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
 .cam-stage video.mirror { transform: scaleX(-1); }
 .cam-stage::before, .cam-stage::after { content: ""; position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; }
-.cam-stage::before { top: 0; height: 150px; background: linear-gradient(rgba(0, 0, 0, .45), transparent); }
-.cam-stage::after { bottom: 0; height: 220px; background: linear-gradient(transparent, rgba(0, 0, 0, .5)); }
+.cam-stage::before { top: 0; height: 120px; background: linear-gradient(rgba(255,255,255,.14), transparent); }
+.cam-stage::after { bottom: 0; height: 120px; background: linear-gradient(transparent, rgba(255,255,255,.04)); }
 .flash { position: absolute; inset: 0; z-index: 5; background: #fff; opacity: 0; pointer-events: none; }
 .flash.go { animation: shot .22s ease-out; }
 @keyframes shot { from { opacity: .85; } to { opacity: 0; } }
@@ -210,16 +207,16 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
 .cam-top { position: absolute; z-index: 3; top: calc(var(--safe-t) + 10px); left: calc(12px + var(--safe-l)); right: calc(12px + var(--safe-r)); display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; pointer-events: none; }
 .cam-top > * { pointer-events: auto; }
 .cam-top-left { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; max-width: calc(100% - 70px); }
-.camera-brand { display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 14px 4px 4px; border-radius: 99px; background: var(--glass); color: #fff; text-align: left; }
+.camera-brand { display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 14px 4px 4px; border-radius: 99px; background: var(--glass); color: var(--ink); text-align: left; }
 .camera-brand img { width: 38px; height: 38px; border-radius: 50%; background: #fff; object-fit: contain; padding: 2px; flex: none; }
 .camera-brand-copy { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .camera-brand-copy b { font-size: 14px; }
-.camera-brand-copy span { font-size: 11px; color: #e6dcf1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.camera-brand:active { background: rgba(18, 8, 28, .8); }
+.camera-brand-copy span { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.camera-brand:active { background: #f3f5f7; }
 .chip-row { display: flex; align-items: center; gap: 6px; max-width: 100%; }
-.cam-top .chip { background: var(--glass); border: 0; color: #fff; }
-.cam-top .chip:active { background: rgba(18, 8, 28, .8); }
-.cam-top .chip.x { width: 34px; min-height: 34px; padding: 0; justify-content: center; }
+.cam-top .chip { background: var(--glass); border: 1px solid var(--line); color: var(--ink); }
+.cam-top .chip:active { background: #f0f2f4; }
+.cam-top .chip.x { width: 34px; min-height: 34px; padding: 0; justify-content: center; color: var(--muted); }
 .cam-top .chip.x svg { width: 16px; height: 16px; }
 .sound-chip { color: var(--amber) !important; }
 
@@ -233,20 +230,13 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
 .cam-bottom { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; padding: 0 calc(18px + var(--safe-r)) 18px calc(18px + var(--safe-l)); display: flex; flex-direction: column; align-items: center; gap: 14px; pointer-events: none; }
 .cam-bottom > * { pointer-events: auto; }
 .zoom-presets { display: flex; gap: 4px; padding: 4px; border-radius: 99px; background: var(--glass); }
-.zoom-preset { min-width: 46px; height: 36px; padding: 0 10px; border-radius: 99px; color: #fff; font-size: 14px; font-weight: 800; }
-.zoom-preset.active { background: #fff; color: #20122e; }
-.zoom-preset:not(.active):active { background: rgba(255, 255, 255, .22); }
+.zoom-preset { min-width: 46px; height: 36px; padding: 0 10px; border-radius: 99px; color: var(--muted); font-size: 14px; font-weight: 800; }
+.zoom-preset.active { background: var(--brand); color: #fff; }
+.zoom-preset:not(.active):active { background: var(--brand-soft); }
 .zoom-bar { position: absolute; z-index: 3; left: 50%; bottom: calc(168px); transform: translateX(-50%); width: min(78%, 320px); padding: 8px 14px; border-radius: 99px; background: var(--glass); }
 .zoom-bar input { width: 100%; accent-color: var(--amber); }
 
 .shutter-row { width: 100%; max-width: 420px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
-.gallery-btn { position: relative; justify-self: start; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; color: #fff; background: var(--glass); border: 2px solid rgba(255, 255, 255, .85); overflow: hidden; }
-.gallery-btn svg { width: 24px; height: 24px; }
-.gallery-btn img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.gallery-btn:active { opacity: .8; }
-.mode-btn { justify-self: end; width: 62px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; border-radius: 14px; background: var(--glass); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-.mode-btn svg { width: 24px; height: 24px; }
-.mode-btn:active { background: rgba(18, 8, 28, .85); }
 
 .shutter { position: relative; width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; background: transparent; border: 5px solid #fff; touch-action: none; -webkit-touch-callout: none; }
 .shutter .ring { position: absolute; inset: -5px; width: calc(100% + 10px); height: calc(100% + 10px); transform: rotate(-90deg); pointer-events: none; }
@@ -255,16 +245,15 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
 .shutter:active .core { background: rgba(255, 255, 255, .5); }
 .shutter.video .core { width: 38px; height: 38px; background: #ff4d3d; }
 .shutter.recording .core { width: 30px; height: 30px; border-radius: 8px; background: #ff4d3d; }
-body.camera-recording .cam-rail, body.camera-recording .gallery-btn, body.camera-recording .mode-btn, body.camera-recording .chip-row, body.camera-recording .zoom-bar { opacity: .35; pointer-events: none; }
 
-.cam-gate { position: absolute; inset: 0; z-index: 8; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 28px; background: #12091b; color: #fff; text-align: center; }
+.cam-gate { position: absolute; inset: 0; z-index: 8; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 28px; background: rgba(255,255,255,.98); color: var(--ink); text-align: center; }
 .cam-gate > * { max-width: 360px; width: 100%; }
-.cam-gate h1 { color: #fff; }
-.cam-gate .muted, .cam-gate .small { color: #cfc3dc; }
-.cam-gate .btn { background: var(--amber); border-color: var(--amber); color: #20122e; }
-.cam-gate .btn.ghost { background: transparent; border-color: #fff; color: #fff; }
-.cam-gate .btn:active { background: #e6a000; border-color: #e6a000; color: #20122e; }
-.cam-gate .btn.ghost:active { background: rgba(255, 255, 255, .15); color: #fff; border-color: #fff; }
+.cam-gate h1 { color: var(--ink); }
+.cam-gate .muted, .cam-gate .small { color: var(--muted); }
+.cam-gate .btn { background: var(--brand); border-color: var(--brand); color: #fff; }
+.cam-gate .btn.ghost { background: #fff; border-color: var(--line); color: var(--brand); }
+.cam-gate .btn:active { background: var(--brand-dark); border-color: var(--brand-dark); color: #fff; }
+.cam-gate .btn.ghost:active { background: var(--brand-soft); color: var(--brand-dark); border-color: var(--brand); }
 
 /* ---------- review and submit ---------- */
 .stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; }
@@ -278,7 +267,7 @@ body.camera-recording .cam-rail, body.camera-recording .gallery-btn, body.camera
 .challenge-map-list { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
 .challenge-map-item { background: #f7f4fa; border: 1px solid #e4d9ee; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .challenge-map-item p { margin: 0; }
-.challenge-map-number { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--amber); color: #20122e; font-weight: 800; }
+.challenge-map-number { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 800; }
 .challenge-map-item .grow { display: flex; flex-direction: column; }
 .map-range-warning { color: var(--danger); font-weight: 700; }
 .map-range-ok { color: var(--ok); font-weight: 700; }
@@ -350,88 +339,313 @@ body[data-view=map] .map-place { top: 10px; }
 .memory-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
 .memory-meta-grid div { background: #f4f6f8; border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; }
 .memory-meta-grid span { font-size: 12px; color: var(--muted); }
-.memory-detail-media { display: block; width: 100%; max-height: 50dvh; object-fit: contain; background: #111; border-radius: 16px; margin-bottom: 12px; }
+.memory-detail-media { display: block; width: 100%; max-height: 50dvh; object-fit: contain; background: #edf0f3; border-radius: 16px; margin-bottom: 12px; }
 .memory-detail-copy .btn { flex: 1; }
 .memory-challenge { display: flex; flex-direction: column; background: var(--brand-soft); border-radius: 12px; padding: 8px 12px; margin: 8px 0; }
 .memory-challenge span { font-size: 12px; color: var(--muted); }
 
-/* ---------- small phones, big screens, short screens ---------- */
-@media (max-width: 360px) { .btn { padding: 0 14px; } #nav button { font-size: 10px; } .shutter { width: 76px; height: 76px; } .shutter .core { width: 54px; height: 54px; } }
-@media (min-width: 700px) { .cam-stage video { object-fit: cover; } .sheet { border-radius: 22px; margin-bottom: 20px; } }
-@media (max-height: 480px) and (orientation: landscape) {
-  .cam-bottom { flex-direction: row; justify-content: center; gap: 24px; padding-bottom: 8px; }
-  .cam-stage::after { height: 120px; }
-  #nav button span { display: none; } #nav button { min-height: 40px; }
+
+/* ============================================================
+   Final light app layer
+   One visual language, no dark-mode branch, no footer chrome.
+   ============================================================ */
+html, body { color-scheme: light only; background: #f4f6f8; }
+body, #app { min-height: 100%; }
+button, input, textarea, select { -webkit-appearance: none; appearance: none; }
+
+/* Main navigation stays white on every tab, including Camera. */
+#nav {
+  background: rgba(255,255,255,.98);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -2px 12px rgba(29,39,51,.08);
+  padding-top: 4px;
 }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+#nav button { color: #687383; border-radius: 13px; }
+#nav button:hover { background: #f6f3fa; }
+#nav button:active { background: #ece6f2; }
+#nav button[aria-current=page] { color: var(--brand); background: var(--brand-soft); }
+#nav button[aria-current=page] svg { stroke-width: 2.4; }
+#nav .badge { background: var(--brand); color: #fff; }
 
-/* ---------- final camera chrome ---------- */
-.camera-topline { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.camera-top-actions { display: flex; align-items: center; gap: 6px; padding: 4px; border-radius: 24px; background: var(--glass); }
-.camera-top-actions .tool { width: 42px; height: 42px; }
-.camera-top-actions .camera-gallery { display: grid; }
-.camera-challenge-row { width: 100%; display: flex; justify-content: center; pointer-events: none; }
-.camera-challenge-row .row { pointer-events: auto; max-width: min(88vw, 520px); }
-.camera-challenge-row .chip { max-width: min(76vw, 420px); }
-.camera-challenge-row .chip.x { background: var(--glass); color: #fff; border: 0; }
 
-.side-btn { width: 56px; min-height: 56px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #fff; background: var(--glass); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-.side-btn svg { width: 25px; height: 25px; }
-.side-btn:active { background: rgba(18, 8, 28, .84); }
-.side-btn.empty { display: none; }
+/* Installation recommendation is a compact light surface and does not reduce camera viewport height. */
+#install-banner {
+  position: static;
+  z-index: 55;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-bottom: 1px solid #d9dde4;
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: none;
+}
+body[data-view=camera] #install-banner {
+  position: fixed;
+  top: calc(var(--safe-t) + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100% - 18px, 430px);
+  border: 1px solid #d9dde4;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(29,39,51,.15);
+}
+#install-banner .ib-text { color: var(--ink); }
+#install-banner .ib-btn { background: var(--brand); color: #fff; border-radius: 10px; }
+#install-banner .ib-btn:active { background: var(--brand-dark); }
+#install-banner .ib-x { color: var(--muted); }
+body[data-view=camera] #install-banner { background: rgba(255,255,255,.98); color: var(--ink); border-color: #d9dde4; }
+body[data-view=camera] .ib-btn { background: var(--brand); color: #fff; }
+body[data-view=camera] .ib-x { color: var(--muted); }
 
-.camera-mode-row { display: flex; justify-content: center; align-items: center; min-height: 34px; }
-.modes { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 99px; background: rgba(18, 8, 28, .62); }
-.modes button { min-width: 78px; height: 32px; padding: 0 14px; border-radius: 99px; color: #e9e1f2; font-size: 11px; font-weight: 900; letter-spacing: .06em; }
-.modes button[aria-pressed="true"] { background: #fff; color: #20122e; }
-.modes button:not([aria-pressed="true"]):active { background: rgba(255, 255, 255, .2); }
+/* Camera: real viewfinder, white controls, no backdrop blur. */
+.cam-stage {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  overflow: hidden;
+  isolation: isolate;
+  touch-action: none;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.cam-stage video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  background: #000;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.cam-stage::before { height: 110px; background: linear-gradient(rgba(255,255,255,.16), transparent); }
+.cam-stage::after { height: 120px; background: linear-gradient(transparent, rgba(255,255,255,.04)); }
 
-.shutter-stack { position: relative; display: grid; place-items: center; min-width: 84px; min-height: 84px; }
-.capture-thumb { position: absolute; right: calc(100% + 16px); width: 54px; height: 54px; border-radius: 14px; overflow: hidden; background: rgba(18, 8, 28, .72); border: 2px solid rgba(255,255,255,.9); display: grid; place-items: center; }
-.capture-thumb-image { width: 100%; height: 100%; object-fit: cover; }
-.capture-thumb:active { opacity: .78; }
+/* With the install prompt present, keep the app chrome below it instead of underneath it. */
+body.install-banner-visible[data-view=camera] .cam-top { top: calc(var(--safe-t) + 58px); }
+body:not(.install-banner-visible)[data-view=camera] .cam-top { top: calc(var(--safe-t) + 10px); }
+.cam-top { left: calc(10px + var(--safe-l)); right: calc(10px + var(--safe-r)); }
+.camera-topline { align-items: center; }
+.camera-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  border: 1px solid rgba(255,255,255,.7);
+  border-radius: 26px;
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 2px 10px rgba(0,0,0,.16);
+}
+.camera-top-actions .tool {
+  width: 40px;
+  height: 40px;
+  color: var(--ink);
+  background: transparent;
+  border-radius: 50%;
+}
+.camera-top-actions .tool:active { background: #eceff3; }
+.camera-brand {
+  min-height: 48px;
+  padding: 4px 13px 4px 4px;
+  color: var(--ink);
+  background: rgba(255,255,255,.95);
+  border: 1px solid rgba(213,219,227,.95);
+  box-shadow: 0 2px 10px rgba(0,0,0,.15);
+}
+.camera-brand img { width: 38px; height: 38px; border-radius: 50%; background: #fff; }
+.camera-brand-copy b { color: var(--brand); }
+.camera-brand-copy span { color: var(--muted); }
+.camera-brand:active { background: #f3f5f7; }
+.camera-challenge-row { justify-content: flex-start; }
+.camera-challenge-row .chip,
+.cam-top .chip {
+  color: var(--ink);
+  background: rgba(255,255,255,.95);
+  border: 1px solid rgba(213,219,227,.95);
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+}
+.cam-top .chip:active { background: #f3f5f7; }
+.cam-top .chip.x { color: var(--muted); background: rgba(255,255,255,.95); }
+.sound-chip { color: var(--brand) !important; }
 
-.vf { position: absolute; inset: 11% 6%; z-index: 2; pointer-events: none; opacity: .18; }
-.vf i { position: absolute; width: 24px; height: 24px; border-color: #fff; border-style: solid; }
-.vf i:nth-child(1) { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 7px 0 0 0; }
-.vf i:nth-child(2) { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 7px 0 0; }
-.vf i:nth-child(3) { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 7px; }
-.vf i:nth-child(4) { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 7px 0; }
+.readout { background: #b3261e; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
 
-.zoom-presets { margin-bottom: 0; }
-.zoom-preset { min-width: 54px; }
+/* Camera lower controls fit within narrow phones without squeezing labels off-screen. */
+.cam-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 10px calc(10px + var(--safe-b));
+  gap: 9px;
+}
+.camera-mode-row { min-height: 32px; }
+.modes {
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255,255,255,.96);
+  border: 1px solid #d6dbe2;
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+}
+.modes button { min-width: 68px; height: 30px; color: var(--muted); }
+.modes button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+.modes button:not([aria-pressed="true"]):active { background: #ece6f2; }
+.shutter-row {
+  width: min(100%, 340px);
+  max-width: 340px;
+  grid-template-columns: 58px 1fr 58px;
+  column-gap: 8px;
+}
+.side-btn {
+  width: 56px;
+  min-height: 56px;
+  padding: 5px;
+  border: 1px solid rgba(213,219,227,.95);
+  border-radius: 16px;
+  background: rgba(255,255,255,.95);
+  color: var(--ink);
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+}
+.side-btn:active { background: #eef0f3; }
+.shutter-stack { min-width: 76px; min-height: 76px; }
+.shutter {
+  width: 76px;
+  height: 76px;
+  border: 4px solid #fff;
+  background: rgba(255,255,255,.15);
+  box-shadow: 0 3px 14px rgba(0,0,0,.18);
+}
+.shutter .core { width: 58px; height: 58px; background: rgba(255,255,255,.80); border: 2px solid var(--brand); }
+.shutter.video .core { width: 38px; height: 38px; background: #e04a40; border-color: #e04a40; }
+.shutter.recording .core { width: 28px; height: 28px; border-radius: 8px; background: #b3261e; border-color: #b3261e; }
+.capture-thumb {
+  width: 50px;
+  height: 50px;
+  right: calc(100% + 8px);
+  border: 2px solid #fff;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0,0,0,.18);
+}
+.zoom-presets {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 108px;
+  transform: translateX(-50%);
+  margin-bottom: 0;
+  background: rgba(255,255,255,.96);
+  border: 1px solid #d6dbe2;
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+}
+.zoom-preset { color: var(--muted); }
+.zoom-preset.active { background: var(--brand); color: #fff; }
+.zoom-preset:not(.active):active { background: var(--brand-soft); }
+.zoom-bar { background: rgba(255,255,255,.96); border: 1px solid #d6dbe2; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+.zoom-bar input { accent-color: var(--brand); }
 
-@media (max-width: 420px) {
-  .camera-top-actions { gap: 2px; }
-  .camera-top-actions .tool { width: 38px; height: 38px; }
-  .camera-top-actions .camera-gallery { display: none; }
-  .camera-brand-copy b { font-size: 13px; }
-  .camera-brand-copy span { max-width: 125px; }
-  .modes button { min-width: 68px; padding: 0 10px; }
-  .side-btn { width: 52px; min-height: 52px; border-radius: 15px; }
-  .shutter-stack { min-width: 78px; min-height: 78px; }
-  .shutter { width: 78px; height: 78px; }
-  .shutter .core { width: 58px; height: 58px; }
-  .capture-thumb { width: 48px; height: 48px; right: calc(100% + 9px); }
+/* Camera permission gate stays light too. */
+.cam-gate {
+  background: rgba(255,255,255,.98);
+  color: var(--ink);
+}
+.cam-gate h1 { color: var(--ink); }
+.cam-gate .muted, .cam-gate .small { color: var(--muted); }
+.cam-gate .btn { background: var(--brand); border-color: var(--brand); color: #fff; }
+.cam-gate .btn.ghost { background: #fff; border-color: var(--line); color: var(--brand); }
+.cam-gate .btn:active { background: var(--brand-dark); border-color: var(--brand-dark); }
+.cam-gate .btn.ghost:active { background: var(--brand-soft); color: var(--brand-dark); border-color: var(--brand); }
+
+/* Review/submit screens use the same light UI language. */
+.review-bar { background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -3px 16px rgba(29,39,51,.12); }
+.review-discard-x { background: rgba(255,255,255,.95); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 2px 9px rgba(0,0,0,.12); }
+.review-discard-x:active { background: #eef0f3; }
+.thumb-lg { background: #edf0f3; }
+
+/* Clean map controls and map text surfaces. */
+.map-toolbar .tool,
+.memory-control,
+.memory-map-icon {
+  background: #fff;
+  color: var(--brand-dark);
+  border: 1px solid #d6dbe2;
+}
+.map-toolbar .tool:hover, .memory-control:hover, .memory-map-icon:hover { background: #f8f4fa; }
+.map-toolbar .tool:active, .memory-control:active, .memory-map-icon:active { background: var(--brand-soft); }
+.map-location-card:active { background: #f7f4fa; }
+#v-map .page { padding-bottom: 24px; }
+
+/* Settings page: compact, readable, touch friendly. */
+.settings-page { padding-bottom: 28px; }
+.settings-hero { padding: 6px 0 4px; }
+.settings-hero h1 { margin-bottom: 5px; }
+.settings-section h2 { margin-top: 18px; }
+.settings-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.settings-card.stack { display: flex; flex-direction: column; align-items: stretch; }
+.settings-card-main { flex: 1; min-width: 0; }
+.settings-card-main b { display:block; font-size: 16px; margin-top: 2px; }
+.settings-help { margin: 0; }
+.settings-output { width: 100%; }
+.settings-stat { display:flex; align-items:baseline; gap:8px; }
+.settings-stat b { font-size: 30px; line-height: 1; color: var(--brand); }
+.settings-stat span { color: var(--muted); font-size: 14px; }
+.settings-version { margin: 22px 0 6px; color: #87909a; font-size: 11px; text-align: center; }
+
+/* Make generic destructive buttons consistently readable in light mode. */
+.btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn.danger:active { background: #8c1d17; }
+
+/* Dynamic-island / notch protection: never use blur/backdrop effects over the viewfinder. */
+html, body, #app, #views, .view, .cam-stage { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* Narrow screens: never let the bottom shutter row overflow. */
+@media (max-width: 360px) {
+  .camera-top-actions .tool { width: 36px; height: 36px; }
+  .camera-brand { padding-right: 9px; }
+  .camera-brand-copy b { font-size: 12px; }
+  .camera-brand-copy span { font-size: 10px; max-width: 112px; }
+  .shutter-row { width: min(100%, 306px); grid-template-columns: 52px 1fr 52px; column-gap: 6px; }
+  .side-btn { width: 50px; min-height: 50px; }
+  .shutter { width: 68px; height: 68px; }
+  .shutter .core { width: 52px; height: 52px; }
+  .shutter-stack { min-width: 68px; min-height: 68px; }
+  .capture-thumb { width: 44px; height: 44px; right: calc(100% + 5px); }
+  .modes button { min-width: 60px; padding: 0 9px; }
 }
 
 @media (max-height: 620px) {
-  .cam-top { top: calc(var(--safe-t) + 6px); }
-  .cam-top .chip { min-height: 34px; }
-  .cam-bottom { gap: 8px; padding-bottom: 8px; }
-  .camera-mode-row { min-height: 28px; }
-  .modes button { height: 28px; }
-  .shutter { width: 70px; height: 70px; }
-  .shutter .core { width: 52px; height: 52px; }
+  body.install-banner-visible[data-view=camera] .cam-top { top: calc(var(--safe-t) + 50px); }
+  .cam-bottom { padding-bottom: calc(6px + var(--safe-b)); gap: 6px; }
+  .shutter { width: 66px; height: 66px; }
+  .shutter .core { width: 50px; height: 50px; }
+  .shutter-stack { min-width: 66px; min-height: 66px; }
   .side-btn { width: 48px; min-height: 48px; }
 }
 
-/* ---------- light-only app ---------- */
-html, body { color-scheme: light only; }
+.capture-thumb-fallback { width: 100%; height: 100%; display: grid; place-items: center; color: var(--ink); background: #fff; }
+.capture-thumb-fallback svg { width: 23px; height: 23px; }
+.capture-thumb img[hidden], .capture-thumb-fallback[hidden] { display: none; }
 
-/* Keep the camera, map and memory views flush to the device bottom edge. */
-body[data-view=camera] .site-credit,
-body[data-view=review] .site-credit,
-body[data-view=map] .site-credit,
-body[data-view=posts] .site-credit { display: none; }
-
+/* Final light-mode finish. */
+.toast {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 5px 18px rgba(29,39,51,.16);
+}
+.toast.ok { background: var(--ok-soft); color: #0f5a31; border-color: #b9e1c7; }
+.toast.bad { background: var(--danger-soft); color: #8f1d16; border-color: #e7b7b1; }
+.stage, .thumb-lg, .memory-detail-media { background: #edf0f3; }
+.camera-topline { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.camera-top-actions { flex: none; max-width: 50%; }
+.camera-top-actions .tool { flex: none; }
+.camera-flip { color: var(--ink); }
+#install-banner .ib-text { overflow-wrap: anywhere; }
+@media (max-width: 360px) {
+  .camera-top-actions { max-width: 48%; gap: 2px; padding: 3px; }
+  .camera-top-actions .tool { width: 34px; height: 34px; }
+  .camera-top-actions .tool svg { width: 20px; height: 20px; }
+  .cam-top .chip { max-width: calc(100vw - 110px); }
+}

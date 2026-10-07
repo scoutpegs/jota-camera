@@ -111,8 +111,6 @@ async function setView(name, params = {}) {
   const root = document.getElementById('v-' + name);
   root.classList.add('active');
   app.view = name; app.params = params;
-  const globalBack = $('#global-back');
-  if (globalBack) globalBack.hidden = name === 'onboard' || (name === 'camera' && routeStack.length === 0);
   if (!mounted[name]) mounted[name] = await factories[name](root);
   if (app.view !== name) return; // navigated away while loading
   mounted[name].show && await mounted[name].show(params);
@@ -158,14 +156,8 @@ window.addEventListener('popstate', async (e) => {
 function refreshWho() {
   const me = identity();
   const who = $('#who');
-  const back = $('#global-back');
   who.textContent = me ? 'Recording as ' + me.name : '';
   who.onclick = () => go('settings');
-  if (back) {
-    back.replaceChildren(icon('back'), el('span', {}, 'Back'));
-    back.onclick = () => goBack();
-    back.hidden = app.view === 'camera' || !app.view;
-  }
 }
 
 function buildNav() {
@@ -186,11 +178,14 @@ function buildInstallBanner() {
       continueLabel: 'Close'
     }), { label: 'Add JOTA-JOTI to your home screen' });
   };
+  document.body.classList.add('install-banner-visible');
   const bar = el('div', { id: 'install-banner', role: 'region', 'aria-label': 'Install recommendation' },
     el('span', { class: 'ib-text' }, el('b', {}, 'Recommended: '), 'add JOTA-JOTI to your home screen for the best full-screen camera experience.'),
     el('button', { class: 'ib-btn', type: 'button', onclick: open }, 'Show me'),
-    el('button', { class: 'ib-x', type: 'button', 'aria-label': 'Dismiss install recommendation', onclick: () => { dismissInstall(); bar.remove(); } }, icon('close'))
+    el('button', { class: 'ib-x', type: 'button', 'aria-label': 'Dismiss install recommendation', onclick: () => { dismissInstall(); document.body.classList.remove('install-banner-visible'); bar.remove(); } }, icon('close'))
   );
+  const installed = () => { document.body.classList.remove('install-banner-visible'); bar.remove(); window.removeEventListener('appinstalled', installed); };
+  window.addEventListener('appinstalled', installed, { once: true });
   $('#topbar').after(bar);
 }
 
